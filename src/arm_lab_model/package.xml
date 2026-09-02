@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>arm_lab_model</name>
+  <version>1.0.0</version>
+  <description>
+    Config-driven model of a rover-mounted serial arm: hollow-tube link geometry,
+    inertia, inverse dynamics, payload and deflection analysis, plus generators
+    for the URDF and the ros2_control configuration.
+  </description>
+  <maintainer email="farouk15160@gmail.com">farouk</maintainer>
+  <license>Apache-2.0</license>
+
+  <depend>rclpy</depend>
+  <depend>python3-numpy</depend>
+  <depend>python3-yaml</depend>
+  <exec_depend>ament_index_python</exec_depend>
+
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

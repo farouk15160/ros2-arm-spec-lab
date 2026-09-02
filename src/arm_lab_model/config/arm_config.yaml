@@ -1,0 +1,289 @@
+# =============================================================================
+#  rover arm — configuration under test
+# =============================================================================
+#  This file is the SINGLE SOURCE OF TRUTH. The URDF, the Gazebo model, the
+#  ros2_control controllers, the dashboard and the spec report are all
+#  generated from it. Change a number here and re-launch; nothing else to edit.
+#
+#  Units: SI everywhere.  length m | mass kg | torque N.m | speed m/s, rad/s
+#  Copy this file, edit it, and run with  config_file:=/path/to/your_variant.yaml
+# =============================================================================
+
+robot:
+  name: rover_arm
+  # Where the shoulder yaw axis sits above the rover deck.
+  mount_xyz: [0.0, 0.0, 0.0]
+  mount_rpy: [0.0, 0.0, 0.0]
+  # Pedestal below joint_1 (the part that bolts to the rover).
+  pedestal:
+    length: 0.120
+    outer_diameter: 0.120
+    wall_thickness: 0.005
+    material: aluminium_6061
+    extra_mass: 0.30          # bolts, connector plate, harness entry
+
+environment:
+  gravity: 9.81               # 3.72 for Mars, 1.62 for the Moon
+  # Reach is quoted "from the shoulder axis". Name the joint that defines it.
+  reach_reference_joint: joint_2
+
+# -----------------------------------------------------------------------------
+# Material library. Hollow tubes are sized from these.
+# -----------------------------------------------------------------------------
+materials:
+  aluminium_6061:
+    density: 2700.0
+    youngs_modulus: 68.9e9
+    yield_strength: 276.0e6
+    color: [0.78, 0.79, 0.82, 1.0]
+  cfrp_tube:                  # pultruded carbon tube, quasi-isotropic layup
+    density: 1600.0
+    youngs_modulus: 70.0e9
+    yield_strength: 600.0e6
+    color: [0.12, 0.12, 0.14, 1.0]
+  steel_4130:
+    density: 7850.0
+    youngs_modulus: 205.0e9
+    yield_strength: 460.0e6
+    color: [0.55, 0.56, 0.60, 1.0]
+  pa12_sls:                   # printed brackets / covers
+    density: 1010.0
+    youngs_modulus: 1.6e9
+    yield_strength: 48.0e6
+    color: [0.90, 0.88, 0.80, 1.0]
+
+# -----------------------------------------------------------------------------
+# Actuator library. torque_limit = peak_torque * gear_ratio * efficiency
+# -----------------------------------------------------------------------------
+actuators:
+  big_shoulder:               # e.g. quasi-direct-drive + harmonic stage
+    peak_torque: 1.30         # motor-side peak, N.m
+    continuous_torque: 0.55   # motor-side continuous, N.m
+    gear_ratio: 100.0
+    efficiency: 0.75
+    rotor_inertia: 6.0e-5     # motor-side, kg.m^2 (reflected as J*n^2)
+    max_motor_speed: 314.0    # rad/s motor-side (~3000 rpm)
+    mass: 1.05                # actuator + bearing + brake, kg
+    joint_stiffness: 12000.0  # output-side torsional stiffness, N.m/rad
+    friction: 0.9             # output-side static/coulomb friction, N.m
+    quiescent_power: 6.0      # W, holding/electronics overhead
+    bus_voltage: 48.0
+  mid_elbow:
+    peak_torque: 0.90
+    continuous_torque: 0.38
+    gear_ratio: 100.0
+    efficiency: 0.75
+    rotor_inertia: 3.5e-5
+    max_motor_speed: 314.0
+    mass: 0.78
+    joint_stiffness: 8000.0
+    friction: 0.6
+    quiescent_power: 5.0
+    bus_voltage: 48.0
+  small_wrist:
+    peak_torque: 0.42
+    continuous_torque: 0.18
+    gear_ratio: 80.0
+    efficiency: 0.72
+    rotor_inertia: 1.2e-5
+    max_motor_speed: 335.0
+    mass: 0.42
+    joint_stiffness: 3000.0
+    friction: 0.25
+    quiescent_power: 3.5
+    bus_voltage: 24.0
+
+# -----------------------------------------------------------------------------
+# The kinematic chain, proximal -> distal.
+#
+# Frame convention, per entry:
+#   1. start at the previous link's DISTAL frame (base mount for the first)
+#   2. translate by  origin_xyz, rotate by  origin_rpy   -> joint frame
+#   3. the joint rotates about  axis  (revolute) or slides along it (prismatic)
+#   4. the link is a hollow tube from the joint frame, running  length  metres
+#      along  direction  -> that end becomes the next entry's DISTAL frame
+#
+# So editing a `length` moves everything downstream automatically. Reach,
+# inertias, gravity torques and the URDF all follow.
+# -----------------------------------------------------------------------------
+joints:
+  - name: joint_1             # shoulder yaw (turret)
+    type: revolute
+    origin_xyz: [0.0, 0.0, 0.0]
+    origin_rpy: [0.0, 0.0, 0.0]
+    axis: [0.0, 0.0, 1.0]
+    actuator: big_shoulder
+    limits: {lower: -3.05, upper: 3.05, velocity: 1.20}
+    link:
+      name: link_1
+      length: 0.130
+      outer_diameter: 0.110
+      wall_thickness: 0.004
+      material: aluminium_6061
+      direction: [0.0, 0.0, 1.0]
+      extra_mass: 0.25        # yaw bearing + slip ring
+
+  - name: joint_2             # shoulder pitch  <-- reach is measured from here
+    type: revolute
+    origin_xyz: [0.0, 0.0, 0.0]
+    origin_rpy: [-1.5708, 0.0, 0.0]
+    axis: [0.0, 0.0, 1.0]
+    actuator: big_shoulder
+    limits: {lower: -2.10, upper: 2.10, velocity: 1.20}
+    link:
+      name: link_2            # upper arm
+      length: 0.450
+      outer_diameter: 0.080
+      wall_thickness: 0.0025
+      material: cfrp_tube
+      direction: [1.0, 0.0, 0.0]
+      extra_mass: 0.18        # end fittings, cable clips
+
+  - name: joint_3             # elbow pitch
+    type: revolute
+    origin_xyz: [0.0, 0.0, 0.0]
+    origin_rpy: [0.0, 0.0, 0.0]
+    axis: [0.0, 0.0, 1.0]
+    actuator: mid_elbow
+    limits: {lower: -2.60, upper: 2.60, velocity: 1.60}
+    link:
+      name: link_3            # forearm
+      length: 0.380
+      outer_diameter: 0.070
+      wall_thickness: 0.0025
+      material: cfrp_tube
+      direction: [1.0, 0.0, 0.0]
+      extra_mass: 0.15
+
+  - name: joint_4             # wrist roll
+    type: revolute
+    origin_xyz: [0.0, 0.0, 0.0]
+    origin_rpy: [0.0, 1.5708, 0.0]
+    axis: [0.0, 0.0, 1.0]
+    actuator: small_wrist
+    limits: {lower: -3.05, upper: 3.05, velocity: 2.50}
+    link:
+      name: link_4
+      length: 0.080
+      outer_diameter: 0.062
+      wall_thickness: 0.003
+      material: aluminium_6061
+      direction: [0.0, 0.0, 1.0]
+      extra_mass: 0.05
+
+  - name: joint_5             # wrist pitch
+    type: revolute
+    origin_xyz: [0.0, 0.0, 0.0]
+    origin_rpy: [-1.5708, 0.0, 0.0]
+    axis: [0.0, 0.0, 1.0]
+    actuator: small_wrist
+    limits: {lower: -2.20, upper: 2.20, velocity: 2.50}
+    link:
+      name: link_5
+      length: 0.055
+      outer_diameter: 0.058
+      wall_thickness: 0.003
+      material: aluminium_6061
+      direction: [1.0, 0.0, 0.0]
+      extra_mass: 0.05
+
+  - name: joint_6             # tool roll
+    type: revolute
+    origin_xyz: [0.0, 0.0, 0.0]
+    origin_rpy: [0.0, 1.5708, 0.0]
+    axis: [0.0, 0.0, 1.0]
+    actuator: small_wrist
+    limits: {lower: -3.05, upper: 3.05, velocity: 3.00}
+    link:
+      name: link_6            # tool flange
+      length: 0.035
+      outer_diameter: 0.056
+      wall_thickness: 0.004
+      material: aluminium_6061
+      direction: [0.0, 0.0, 1.0]
+      extra_mass: 0.04
+
+# -----------------------------------------------------------------------------
+# End effector. `mass` is overridable at launch:  ee_mass:=1.4
+# The TCP sits  tcp_offset  past the tool flange, along the flange axis.
+# -----------------------------------------------------------------------------
+end_effector:
+  name: gripper
+  mass: 1.05                  # WHOLE assembly: body + actuator + both jaws
+  tcp_offset: 0.050           # flange -> TCP, m (grasp point inside the jaws)
+  com_offset: 0.045           # flange -> gripper CoM, m
+  body_length: 0.090
+  body_width: 0.100
+  body_height: 0.070
+  material: pa12_sls
+  # Simulated parallel jaws. Set simulate_fingers: false to model the gripper
+  # as one rigid lump (faster, fewer contacts).
+  simulate_fingers: true
+  stroke: 0.180               # total opening, m (0 -> 180 mm)
+  finger_length: 0.070
+  finger_thickness: 0.012
+  finger_width: 0.030
+  finger_mass: 0.06           # per jaw, carved out of `mass` above
+  grip_force_min: 10.0        # N
+  grip_force_max: 100.0       # N
+  grip_speed: 0.05            # m/s per jaw
+
+# -----------------------------------------------------------------------------
+# Control / electrical / bus — everything the spec report checks.
+# -----------------------------------------------------------------------------
+control:
+  update_rate: 200            # Hz, ros2_control controller manager
+  command_interface: velocity # velocity | position | effort (launch-overridable)
+  dynamic_torque_reserve: 0.25  # fraction of peak torque held back for accel
+  gains:                      # JTC gains, scaled per joint (see docs in README)
+    p_scale: 12.0
+    i_scale: 0.4
+    d_scale: 1.2
+    i_clamp: 8.0
+  tcp_speed_limit: 0.20       # m/s, enforced by the speed monitor
+  tcp_acceleration: 0.50      # m/s^2, used for the dynamic torque check
+  contact_force_limit: 20.0   # N, normal direction
+
+can_bus:
+  bitrate: 1000000            # classical CAN, bit/s
+  frames_per_joint_per_cycle: 2   # 1 command + 1 feedback
+  bits_per_frame: 130         # 11-bit ID, 8 data bytes, worst-case stuffing
+  max_utilisation: 0.60       # design rule: stay under 60 % bus load
+
+# -----------------------------------------------------------------------------
+# Target specification — what the report grades against.
+# These are the numbers from the requirements table.
+# -----------------------------------------------------------------------------
+spec_targets:
+  dof: 6
+  reach_min: 1.000
+  reach_max: 1.050
+  payload_at_full_reach: 2.0
+  payload_at_700mm: 3.0
+  arm_mass_target: 10.0
+  arm_mass_max: 12.0
+  ee_mass_allowance: 1.20
+  raw_positioning_accuracy: 0.010     # <= 10 mm
+  vision_corrected_repeatability: 0.003
+  orientation_accuracy_deg: 2.0
+  tcp_speed: 0.20
+  contact_force_limit: 20.0
+  gripper_opening: 0.180
+  gripper_force_min: 10.0
+  gripper_force_max: 100.0
+  main_voltage: 48.0
+  secondary_voltage: 24.0
+  control_rate: 200
+  can_bitrate: 1000000
+
+# -----------------------------------------------------------------------------
+# Poses used by the spec report and the dashboard's test buttons.
+# Values are joint angles in radians, proximal -> distal. Short lists are
+# zero-padded; `auto_full_reach` stretches the arm horizontally.
+# -----------------------------------------------------------------------------
+test_poses:
+  home:        [0.0, -1.5708, 1.5708, 0.0, 0.0, 0.0]
+  stowed:      [0.0, -2.0, 2.4, 0.0, 1.1, 0.0]
+  full_reach:  auto_full_reach
+  reach_700:   auto_reach_0.700
+  overhead:    [0.0, -0.6, 0.6, 0.0, 0.0, 0.0]
