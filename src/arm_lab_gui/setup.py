@@ -20,6 +20,7 @@ setup(
     entry_points={
         'console_scripts': [
             'dashboard = arm_lab_gui.dashboard:main',
+            'config_editor = arm_lab_gui.config_editor:main',
             'capability_node = arm_lab_gui.capability_node:main',
             'speed_test = arm_lab_gui.speed_test:main',
         ],

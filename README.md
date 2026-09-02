@@ -17,7 +17,7 @@ src/
                        analysis, self-collision, Cartesian motion, time-optimal
                        timing, ISO 9283 accuracy testing, MoveIt 2 config
   arm_lab_bringup/     launch files, Gazebo world, RViz config
-  arm_lab_gui/         Qt capability dashboard + headless analysis nodes
+  arm_lab_gui/         configuration editor, capability dashboard, analysis nodes
 ```
 
 ---
@@ -183,6 +183,150 @@ ros2 run arm_lab_model controllers_gen
 
 Launching also writes both to `/tmp/arm_lab_generated/` so you can inspect
 exactly what was fed to Gazebo.
+
+---
+
+## Is the physics right?
+
+That question decides whether anything else here is worth reading, so it is
+answered by cross-checking against sources that share none of this code:
+
+```bash
+ros2 run arm_lab_model verify_physics
+```
+
+| check | against | result |
+|---|---|---|
+| forward kinematics | Orocos KDL, fed the generated URDF | 3.4e-16 m |
+| gravity torque | Orocos KDL's RNE solver | 1.7e-8 N·m |
+| full dynamics (gravity + Coriolis + inertia) | Orocos KDL's RNE solver | 1.9e-8 N·m |
+| joint power vs dE/dt | Lagrangian energy balance | 7.0e-9 W |
+| tube inertia tensor | closed-form thick-walled cylinder | 5.6e-17 kg·m² |
+| point-mass pendulum | m·g·L·cos θ | 3.6e-15 N·m |
+| Jacobian | finite differences | 2.3e-9 m/rad |
+| **Gazebo joint efforts** | **the model, at the poses Gazebo reached** | **0.0 %** |
+
+KDL is an independent implementation by a different team, and it is fed the
+*exported URDF* rather than the internal model, so agreement checks the dynamics
+and the URDF export together. The energy balance is the Lagrangian statement of
+the same mechanics that the Newton-Euler recursion implements, so it tests the
+model as a whole rather than any single term. Gazebo is a third engine again.
+
+**This is not a formality — it found two real bugs.**
+
+- The end effector was modelled as a **point mass**, ignoring its rotational
+  inertia. Worth ~1e-2 N·m on the wrist joints under acceleration, which are
+  precisely the joints with the least torque to spare. KDL caught it; the energy
+  balance then caught that the energy expression had to be updated to match.
+- The URDF placed the gripper body at the configured centre of mass and then
+  hung the jaw links *further out*, so the exported robot had more lever arm
+  than the model. Gazebo caught it as a constant **0.094 N·m** offset on the
+  wrist — and 0.12 kg × 9.81 × 0.08 m is exactly 0.094, which is how it was
+  identified. The body is now placed so the combined centre of mass lands where
+  the configuration says it does.
+
+The published formulas were confirmed against references rather than trusted
+from memory: the thick-walled cylinder tensor
+`I = m/12·(3(r₂²+r₁²)+h²)` and the ISO 9283 repeatability definition
+`RP = l̄ + 3S_l`.
+
+### What is still not verified
+
+Contact and grasping physics are Gazebo's, and its contact solver is not
+cross-checked against anything here. Friction, restitution and jaw grip are
+qualitative. Treat a successful simulated grasp as evidence the geometry and
+forces are plausible, not as a measurement.
+
+---
+
+## Configuration editor
+
+```bash
+ros2 run arm_lab_gui config_editor
+ros2 run arm_lab_gui config_editor --config my_variant.yaml
+```
+
+Every physical parameter in one place — link lengths, tube diameters and wall
+thicknesses, materials, joint limits, actuators, masses, control gains, error
+sources and spec targets — across eight tabs, with a live panel that recomputes
+mass, reach, payload, droop and per-joint torque on **every keystroke**.
+
+The form is generated from a declarative schema, so it always covers the whole
+configuration rather than whichever fields someone remembered to wire up. Joints
+can be added, removed and reordered, which changes the degrees of freedom and
+flows through to the URDF, the controllers and the report.
+
+Invalid input is caught and explained rather than crashing — set a wall
+thickness above the tube radius and the panel says so and tells you the radius.
+Buttons run the full spec report, run the physics verification **on the
+configuration currently on screen**, and launch it straight into Gazebo.
+
+## Pick and place
+
+```bash
+ros2 run arm_lab_kinematics pick_place                       # against a running sim
+ros2 run arm_lab_kinematics pick_place --ros-args -p dry_run:=true    # plan only
+```
+
+Nine legs — open, approach, descend, close, lift, traverse, descend, release,
+retreat — each a straight Cartesian line at the configured TCP speed, so the
+whole cycle respects the speed limit rather than only its average. Every leg is
+checked for reachability, self-collision, torque headroom and singularity
+proximity *before* anything moves, and reported afterwards.
+
+The jaws are **force-controlled**, not position-controlled. This matters: a
+position-commanded jaw drives to a commanded opening and shoves the object
+aside. The first run did exactly that — the box moved 12 cm sideways and never
+left the ground. Commanding a squeeze force and letting contact decide where the
+jaws stop is how a real gripper holds a load. Set `end_effector.grasp_mode` to
+`position` to see the difference.
+
+### Status: the cycle plans and executes; the grasp does not yet close on the object
+
+This is worth stating plainly rather than burying.
+
+**Works, and is measured:** all nine legs plan, every one is reachable and
+self-collision free, the arm executes them in Gazebo, and the TCP speed is held
+at 0.200 m/s throughout. Cycle time 12.8 s, peak torque 41 % of the actuator
+limit. Jaw force control works — commanding −90 N closes the jaws, +40 N opens
+them, verified against `/joint_states`.
+
+**Does not work:** the object is not picked up. What was measured, in position
+command mode where tracking is otherwise exact:
+
+| commanded TCP | achieved | position error | joint error |
+|---|---|---|---|
+| z = 0.24 m | z = 0.240 | **0.0 mm** | 0.00° |
+| z = 0.08 m | z = 0.115 | **35.4 mm** | 2.70° |
+
+Tracking is perfect at height and fails only close to the ground, so this is not
+a controller tuning problem — the descent is being blocked by contact. The jaws
+then close at z ≈ 0.115 while the box top is at 0.080, which is why they shut to
+zero on empty air. It is consistent with the `safety_map` self-collision band
+and with the earlier "tool at the deck" flag: the gripper is a 100 mm wide body
+with 70 mm jaws, and it cannot descend onto an 80 mm box on the ground without
+something touching first.
+
+Raising the trajectory gains was tried and made tracking *worse* (126 mm error),
+so the shipped gains are the better-measured ones.
+
+The likely fixes, untested: longer jaws relative to the body, a taller approach
+so the jaws straddle before the body arrives, or picking the object off a raised
+surface rather than the deck. `safety_map` and `pick_place --ros-args -p
+dry_run:=true` will both tell you before you run it in Gazebo.
+
+## Torque and power zones
+
+```bash
+ros2 run arm_lab_kinematics safety_map
+ros2 run arm_lab_kinematics safety_map --payload 3.0 --quick
+```
+
+A worst-case torque number says whether the arm is adequate; it does not say
+*where* it stops being adequate. This maps torque utilisation, electrical power
+and singularity proximity over the working plane and sorts it into zones, and it
+keeps the reasons separate — a pose blocked by geometry needs a different fix
+from one blocked by torque.
 
 ---
 

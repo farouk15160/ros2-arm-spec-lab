@@ -96,11 +96,18 @@ def plan_line(model: ArmModel,
               accel: Optional[float] = None,
               dt: float = 0.02,
               solver: Optional[IKSolver] = None,
-              singular_threshold: float = 0.02) -> CartesianPath:
+              singular_threshold: float = 0.02,
+              collision_checker=None,
+              collision_retries: int = 4) -> CartesianPath:
     """Plan a straight line from the current TCP pose to the target.
 
     The path is time-scaled uniformly if any joint would exceed its speed limit,
     so the result is always executable -- slower than asked, never illegal.
+
+    Pass a `collision_checker` and each waypoint is re-solved from fresh seeds
+    until a self-collision-free posture is found. Without it the solver has no
+    reason to prefer one branch of the nullspace over another and will happily
+    thread the tool through the forearm.
     """
     cfg = model.cfg
     motion = cfg.raw.get('motion', {}) if hasattr(cfg, 'raw') else {}
@@ -126,19 +133,40 @@ def plan_line(model: ArmModel,
     joints = np.empty((len(fractions), model.n))
     seed = q_start.copy()
     worst_sigma = math.inf
+    colliding = 0
     for k in range(len(fractions)):
-        res = solver.solve(positions[k], rotations[k], seed=seed, restarts=1)
-        if not res.success:
-            notes.append(f'IK failed {res.position_error * 1000:.1f} mm / '
-                         f'{res.orientation_error_deg:.2f} deg into the path at '
-                         f'waypoint {k} of {len(fractions)}')
+        chosen = None
+        fallback = None
+        attempts = 1 if collision_checker is None else max(collision_retries, 1)
+        for attempt in range(attempts):
+            res = solver.solve(positions[k], rotations[k],
+                               seed=seed if attempt == 0 else None,
+                               restarts=1,
+                               rng=np.random.default_rng(7919 + attempt))
+            if not res.success:
+                continue
+            fallback = fallback or res
+            if collision_checker is None or collision_checker.is_free(res.q):
+                chosen = res
+                break
+        res = chosen or fallback
+        if res is None:
+            notes.append(f'IK failed at waypoint {k} of {len(fractions)}, '
+                         f'{arc[k]:.3f} m into the path')
             return CartesianPath(times[:k], positions[:k], rotations[:k],
                                  joints[:k], np.zeros(k),
                                  np.zeros((k, model.n)), False, notes)
+        if chosen is None:
+            colliding += 1
         joints[k] = res.q
         seed = res.q
         sigma = singularity_metrics(model, res.q).sigma_min_full
         worst_sigma = min(worst_sigma, sigma)
+
+    if colliding:
+        notes.append(f'{colliding} of {len(fractions)} waypoints have no '
+                     'self-collision-free posture; the arm cannot follow this '
+                     'line without hitting itself')
 
     if worst_sigma < singular_threshold:
         notes.append(f'passes close to a singularity (smallest singular value '

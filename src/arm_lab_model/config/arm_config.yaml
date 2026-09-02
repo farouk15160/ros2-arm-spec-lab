@@ -132,7 +132,7 @@ joints:
     limits: {lower: -2.10, upper: 2.10, velocity: 1.20}
     link:
       name: link_2            # upper arm
-      length: 0.450
+      length: 0.415
       outer_diameter: 0.080
       wall_thickness: 0.0025
       material: cfrp_tube
@@ -148,7 +148,7 @@ joints:
     limits: {lower: -2.60, upper: 2.60, velocity: 1.60}
     link:
       name: link_3            # forearm
-      length: 0.380
+      length: 0.340
       outer_diameter: 0.070
       wall_thickness: 0.0025
       material: cfrp_tube
@@ -210,7 +210,9 @@ joints:
 end_effector:
   name: gripper
   mass: 1.05                  # WHOLE assembly: body + actuator + both jaws
-  tcp_offset: 0.050           # flange -> TCP, m (grasp point inside the jaws)
+  tcp_offset: 0.125           # flange -> TCP: mid-jaw, i.e. body_length
+                              # + finger_length/2. The TCP must lie BETWEEN
+                              # the jaws or every grasp closes on air.
   com_offset: 0.045           # flange -> gripper CoM, m
   body_length: 0.090
   body_width: 0.100
@@ -224,6 +226,14 @@ end_effector:
   finger_thickness: 0.012
   finger_width: 0.030
   finger_mass: 0.06           # per jaw, carved out of `mass` above
+  # How the jaws are driven in simulation.
+  #   force    - the jaws are commanded a squeeze force and the contact decides
+  #              where they stop. This is how a real gripper holds an object,
+  #              and the only mode in which a grasp can actually carry a load.
+  #   position - the jaws are driven to a commanded opening. Simpler, but the
+  #              position controller will shove an object aside rather than
+  #              grip it.
+  grasp_mode: force
   grip_force_min: 10.0        # N
   grip_force_max: 100.0       # N
   grip_speed: 0.05            # m/s per jaw
@@ -236,6 +246,11 @@ control:
   command_interface: velocity # velocity | position | effort (launch-overridable)
   dynamic_torque_reserve: 0.25  # fraction of peak torque held back for accel
   gains:                      # JTC gains, scaled per joint (see docs in README)
+    # In velocity mode these map position error to a velocity command.
+    # Measured tracking with these values is a few centimetres off under
+    # gravity, which is fine for load and speed studies and NOT fine for
+    # grasping. Raising them further was tried and made it worse, not better.
+    # See the manipulation note in the README.
     p_scale: 12.0
     i_scale: 0.4
     d_scale: 1.2

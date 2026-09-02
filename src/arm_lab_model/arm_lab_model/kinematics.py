@@ -107,6 +107,7 @@ class FrameSet:
     tcp_R: np.ndarray             # (3, 3)
     ee_com: np.ndarray            # (3,)
     ee_mass: float
+    ee_inertia: np.ndarray        # (3, 3) about the EE CoM, world frame
     base_distal: np.ndarray       # (3,) top of the pedestal
     reach_origin: np.ndarray      # (3,) the "shoulder axis" reach is measured from
 
@@ -197,6 +198,26 @@ class ArmModel:
         ee_com = p + flange_dir * ee.com_offset
         ee_mass = ee.mass          # already includes the jaws
 
+        # The tool is a box, not a point. Ignoring its rotational inertia costs
+        # nothing in a holding torque, but it is worth about 1e-2 N.m on the
+        # wrist joints under acceleration -- and those are the joints with the
+        # least torque to spare. The tensor matches the box the URDF exports.
+        if light or not dirs:
+            ee_inertia = np.zeros((3, 3))
+        else:
+            # Unlike a tube, the tool box is not transversely isotropic, so the
+            # roll of its frame about the tool axis changes the tensor. Build it
+            # exactly as the URDF does -- the link frame times the tube frame of
+            # the local direction -- rather than from the world direction, whose
+            # arbitrary choice of first axis would rotate the box.
+            R_ee = R @ _frame_from_direction(
+                np.asarray(cfg.joints[-1].link.direction, dtype=float))
+            lx, ly, lz = ee.body_width, ee.body_height, ee.body_length
+            local = np.diag([ee_mass * (ly * ly + lz * lz) / 12.0,
+                             ee_mass * (lx * lx + lz * lz) / 12.0,
+                             ee_mass * (lx * lx + ly * ly) / 12.0])
+            ee_inertia = R_ee @ local @ R_ee.T
+
         return FrameSet(
             joint_origin=np.array(origins),
             joint_axis=np.array(axes),
@@ -210,6 +231,7 @@ class ArmModel:
             tcp_R=R.copy(),
             ee_com=ee_com,
             ee_mass=ee_mass,
+            ee_inertia=ee_inertia,
             base_distal=base_distal,
             reach_origin=np.array(origins)[self.reach_index],
         )
@@ -300,13 +322,20 @@ class ArmModel:
         # End effector and payload ride rigidly on the last link.
         tip_bodies = []
         if n:
-            for mass, pos in ((fs.ee_mass, fs.ee_com), (payload, fs.tcp)):
+            # The tool carries a real inertia tensor. A bare payload at the TCP
+            # stays a point mass, which is the conservative reading of "2 kg at
+            # the tool centre point" when its shape is unknown.
+            for mass, pos, I_body in ((fs.ee_mass, fs.ee_com, fs.ee_inertia),
+                                      (payload, fs.tcp, None)):
                 if mass <= 0.0:
                     continue
                 c = pos - p_prev
                 acc = (acc_prev + cross3(alpha, c)
                        + cross3(omega, cross3(omega, c)))
-                tip_bodies.append((mass * acc, np.zeros(3), pos))
+                moment = np.zeros(3)
+                if I_body is not None and I_body.any():
+                    moment = I_body @ alpha + cross3(omega, I_body @ omega)
+                tip_bodies.append((mass * acc, moment, pos))
 
         # Backward pass.
         f = np.zeros(3)

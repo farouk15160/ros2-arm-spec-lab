@@ -27,6 +27,8 @@ setup(
             'topp = arm_lab_kinematics.cli:topp_main',
             'collision_check = arm_lab_kinematics.cli:collision_main',
             'moveit_gen = arm_lab_kinematics.cli:moveit_main',
+            'safety_map = arm_lab_kinematics.cli:safety_main',
+            'pick_place = arm_lab_kinematics.pick_place:main',
             'cartesian_move = arm_lab_kinematics.cartesian_node:main',
             'workspace_markers = arm_lab_kinematics.workspace_markers:main',
         ],

@@ -19,6 +19,7 @@ from .cartesian import plan_line
 from .collision import CollisionChecker, build_allowed_collisions
 from .ik import IKSolver
 from .singularity import classify, metrics, speed_capability
+from .safety import build as build_safety, summarise as summarise_safety
 from .topp import parameterise
 from .workspace import TOOL_DOWN, build_map, summarise
 
@@ -411,3 +412,36 @@ def moveit_main(argv: Optional[List[str]] = None) -> int:
     print('  The disable_collisions list is the same allowed-collision matrix')
     print('  the capsule checker derives, so the two cannot drift apart.')
     return 0
+
+
+# ---------------------------------------------------------------- safety
+def safety_main(argv: Optional[List[str]] = None) -> int:
+    p = argparse.ArgumentParser(
+        prog='safety_map',
+        description='Map joint torque, power and singularity zones over the '
+                    'working plane.')
+    _base(p)
+    p.add_argument('--payload', type=float, default=None,
+                   help='load at the TCP, kg; defaults to the rated payload')
+    p.add_argument('--nr', type=int, default=30)
+    p.add_argument('--nz', type=int, default=22)
+    p.add_argument('--samples', type=int, default=20000)
+    p.add_argument('--quick', action='store_true')
+    args = p.parse_args(argv)
+    cfg, model = _load(args)
+    payload = (args.payload if args.payload is not None
+               else float(cfg.spec_targets.get('payload_at_full_reach', 2.0)))
+    if args.quick:
+        args.nr, args.nz, args.samples = 22, 16, 10000
+
+    def progress(done, total):
+        print(f'\r  probing {done}/{total} cells', end='', file=sys.stderr,
+              flush=True)
+
+    smap = build_safety(model, payload=payload, nr=args.nr, nz=args.nz,
+                        samples=args.samples, collision_checker=_checker(model),
+                        progress=progress)
+    print('\r' + ' ' * 40 + '\r', end='', file=sys.stderr)
+    print(summarise_safety(model, smap))
+    counts = smap.zone_counts()
+    return 1 if (counts['over torque'] or counts['self-collision']) else 0

@@ -201,9 +201,19 @@ class UrdfBuilder:
         self._w('  </joint>')
 
         body_mass = ee.mass
+        body_com_distance = ee.com_offset
         if ee.simulate_fingers:
             body_mass = max(ee.mass - 2.0 * ee.finger_mass, 1e-3)
-        body_com = flange * ee.com_offset
+            # `com_offset` is defined as the centre of mass of the WHOLE tool.
+            # The jaws are modelled as separate links out at the jaw position,
+            # so the body has to sit wherever puts the combined centre of mass
+            # back where the configuration says it is. Skipping this leaves the
+            # URDF a few centimetres of lever arm heavier than the model, which
+            # shows up as a constant wrist-torque offset against Gazebo.
+            finger_distance = ee.body_length + ee.finger_length / 2.0
+            body_com_distance = (ee.mass * ee.com_offset
+                                 - 2.0 * ee.finger_mass * finger_distance) / body_mass
+        body_com = flange * body_com_distance
         body_centre = flange * (ee.body_length / 2.0)
         self._w(f'  <link name="{ee.name}_base_link">')
         self._box_inertial(body_mass,
@@ -330,11 +340,20 @@ class UrdfBuilder:
             self._w('      <state_interface name="velocity"/>')
             self._w('      <state_interface name="effort"/>')
             self._w('    </joint>')
-        for jname in cfg.end_effector.finger_joint_names:
+        ee = cfg.end_effector
+        for jname in ee.finger_joint_names:
             self._w(f'    <joint name="{escape(jname)}">')
-            self._w('      <command_interface name="position">')
-            self._w('        <param name="min">0.0</param>')
-            self._w(f'        <param name="max">{cfg.end_effector.stroke / 2.0:.9g}</param>')
+            if ee.grasp_mode == 'force':
+                # Squeeze force in, contact decides where the jaw stops. A
+                # position-commanded jaw pushes the object out of the way
+                # instead of gripping it.
+                self._w('      <command_interface name="effort">')
+                self._w(f'        <param name="min">{-ee.grip_force_max:.9g}</param>')
+                self._w(f'        <param name="max">{ee.grip_force_max:.9g}</param>')
+            else:
+                self._w('      <command_interface name="position">')
+                self._w('        <param name="min">0.0</param>')
+                self._w(f'        <param name="max">{ee.stroke / 2.0:.9g}</param>')
             self._w('      </command_interface>')
             self._w('      <state_interface name="position">')
             self._w('        <param name="initial_value">0.0</param>')

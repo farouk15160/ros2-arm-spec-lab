@@ -228,6 +228,25 @@ class EndEffector:
     grip_force_min: float
     grip_force_max: float
     grip_speed: float
+    grasp_mode: str = 'force'
+
+    @property
+    def jaw_span(self) -> tuple:
+        """Distance from the flange to the start and end of the jaws."""
+        return (self.body_length, self.body_length + self.finger_length)
+
+    @property
+    def tcp_between_jaws(self) -> bool:
+        """Is the tool centre point actually inside the grasp?
+
+        If the TCP sits short of the jaws it is inside the gripper body, and
+        every grasp will close on empty air while the object sits outside the
+        jaws. That failure looks like a controller problem and is not one.
+        """
+        if not self.simulate_fingers:
+            return True
+        start, end = self.jaw_span
+        return start - 1e-9 <= self.tcp_offset <= end + 1e-9
 
     @property
     def finger_joint_names(self) -> List[str]:
@@ -387,6 +406,7 @@ def load_config(path: str | None = None,
         grip_force_min=float(ee_raw.get('grip_force_min', 10.0)),
         grip_force_max=float(ee_raw.get('grip_force_max', 100.0)),
         grip_speed=float(ee_raw.get('grip_speed', 0.05)),
+        grasp_mode=str(ee_raw.get('grasp_mode', 'force')).lower(),
     )
 
     env = raw.get('environment', {})
