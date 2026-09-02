@@ -5,6 +5,7 @@ dynamics is cross-checked against the gradient of potential energy and the
 Jacobian against finite differences, rather than against itself.
 """
 
+import math
 import os
 
 import numpy as np
@@ -55,8 +56,38 @@ def test_reach_never_exceeds_the_geometric_limit(model):
 
 
 def test_full_reach_pose_actually_stretches_out(model):
+    """Within a whisker of the geometric limit, but not exactly on it.
+
+    `geometric_max_reach` is the sum of the link lengths: it assumes every link
+    is perfectly collinear. The generated pose also has to keep the tool axis
+    aligned with the reach direction, which is what stops the solver folding the
+    wrist, and paying for that alignment costs a few millimetres of extension.
+    Demanding the full geometric reach here would be demanding a pose that
+    doubles the tool back on itself.
+    """
     q = model.resolve_pose('auto_full_reach')
-    assert model.reach(q) == pytest.approx(model.geometric_max_reach, rel=2e-3)
+    reach = model.reach(q)
+    assert reach <= model.geometric_max_reach + 1e-9
+    assert reach >= 0.99 * model.geometric_max_reach
+
+
+def test_generated_reach_poses_hit_their_radius(model):
+    for radius in (0.4, 0.7, 0.9):
+        q = model.resolve_pose(f'auto_reach_{radius:.3f}')
+        assert model.reach(q) == pytest.approx(radius, abs=2e-3)
+
+
+def test_reach_poses_keep_the_tool_pointing_outward(model):
+    """The property that keeps these poses out of self-collision."""
+    for radius in (0.5, 0.7, 0.9):
+        q = model.resolve_pose(f'auto_reach_{radius:.3f}')
+        fs = model.frames(q)
+        outward = fs.tcp - fs.reach_origin
+        outward = outward / np.linalg.norm(outward)
+        alignment = float(fs.link_dir[-1] @ outward)
+        assert alignment > 0.9, (
+            f'at r={radius} the tool axis is {math.degrees(math.acos(alignment)):.0f}'
+            ' deg off the reach direction, so the arm is folded')
 
 
 def test_jacobian_matches_finite_differences(model):

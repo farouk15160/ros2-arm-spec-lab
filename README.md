@@ -11,10 +11,13 @@ see what it costs you.
 
 ```
 src/
-  arm_lab_model/     the model: config schema, kinematics, inverse dynamics,
-                     deflection, URDF + controller generation, spec report, sweeps
-  arm_lab_bringup/   launch files, Gazebo world, RViz config
-  arm_lab_gui/       Qt capability dashboard + headless analysis nodes
+  arm_lab_model/       the model: config schema, kinematics, inverse dynamics,
+                       deflection, URDF + controller generation, spec report, sweeps
+  arm_lab_kinematics/  6-DOF IK, workspace and dexterity mapping, singularity
+                       analysis, self-collision, Cartesian motion, time-optimal
+                       timing, ISO 9283 accuracy testing, MoveIt 2 config
+  arm_lab_bringup/     launch files, Gazebo world, RViz config
+  arm_lab_gui/         Qt capability dashboard + headless analysis nodes
 ```
 
 ---
@@ -183,6 +186,161 @@ exactly what was fed to Gazebo.
 
 ---
 
+## Kinematics test bench
+
+`arm_lab_model` answers "can this arm hold the load?". `arm_lab_kinematics`
+answers "can it get there, in the right orientation, fast enough, accurately
+enough, without hitting itself?".
+
+### Inverse kinematics
+
+```bash
+ros2 run arm_lab_kinematics ik_check --samples 200
+ros2 run arm_lab_kinematics ik_check --samples 200 --position-only
+```
+
+Damped least squares on the full 6-DOF task, with damping that rises as the
+smallest singular value collapses and joint-limit avoidance in the nullspace.
+Two details matter and both were found the hard way:
+
+- **The task is solved in two stages.** Solving position and orientation
+  together from a random seed drops into a local minimum surprisingly often,
+  because the solver will trade position error away to reduce orientation error.
+  Position is solved first, then orientation is switched on; when that stalls,
+  only the last three joints are re-seeded, because that is where the
+  orientation freedom lives. This took the cold-start solve rate from 90 % to
+  97.5 %.
+- **Steps that increase the residual are rejected** (Levenberg–Marquardt) rather
+  than taken and hoped over.
+
+Measured on the shipped arm: **97.5 % solved from a cold start, 100 % of targets
+within 1 mm and 0.1°**, median 39 ms. Seeded from a nearby pose — the case that
+matters for servoing — **99.5 %** at 108 ms.
+
+### Workspace and dexterity
+
+```bash
+ros2 run arm_lab_kinematics workspace              # ~2 min
+ros2 run arm_lab_kinematics workspace --quick      # ~45 s
+ros2 run arm_lab_kinematics workspace --save /tmp/ws.npz
+ros2 run arm_lab_kinematics workspace_markers --ros-args -p map_file:=/tmp/ws.npz
+```
+
+Three volumes, because "reach" alone is a marketing number:
+
+| | meaning |
+|---|---|
+| **reachable** | the TCP can get there in *some* orientation |
+| **tool-down** | it can get there with the tool pointing at the ground — what a sampling arm needs |
+| **dexterous** | it can get there in *every* sampled orientation |
+
+Reachability comes from forward sampling (cheap, and it cannot produce a false
+positive); IK is only spent on cells that pass. The first joint sweeps the whole
+arm, so the map is computed in the (radius, height) half-plane and swept through
+the joint's travel — cheaper than a 3-D cloud and far easier to read. Prints an
+ASCII cross-section, or publishes RViz markers from a saved map.
+
+### Singularities
+
+```bash
+ros2 run arm_lab_kinematics singularity --scan
+```
+
+Manipulability, condition number and smallest singular value, plus a *geometric*
+diagnosis — wrist axes aligned, arm fully stretched, TCP on the base rotation
+axis — because knowing a pose is singular is less useful than knowing why.
+
+A 6×N Jacobian stacks metres-per-radian on dimensionless rows, so its
+determinant and condition number mean nothing on their own. Translation and
+rotation are reported separately, and the combined figure uses an explicit
+characteristic length.
+
+### Self-collision
+
+```bash
+ros2 run arm_lab_kinematics collision_check
+```
+
+Capsules around each tube, which is a tight fit rather than a crude bound. Short
+wrist links can have radii larger than the spacing between them, so their
+capsules overlap in *every* pose; those pairs are found by sampling and disabled
+in an allowed-collision matrix, exactly the way MoveIt generates its SRDF
+disable list — and the generated SRDF reuses that same matrix, so the two cannot
+drift apart.
+
+### Cartesian motion
+
+```bash
+ros2 run arm_lab_kinematics cartesian_plan --to 0.62 -0.20 0.18 --compare-joint-space
+ros2 run arm_lab_kinematics cartesian_move        # ROS node
+ros2 topic pub --once /arm_lab/cartesian_target geometry_msgs/msg/PoseStamped \
+    '{pose: {position: {x: 0.62, y: -0.20, z: 0.18}}}'
+```
+
+Straight line in Cartesian space with a trapezoidal profile, orientation
+interpolated by shortest-arc slerp, IK at every waypoint, and uniform time
+scaling if any joint would exceed its speed limit — so the result is always
+executable, slower than asked but never illegal.
+
+### Time-optimal timing
+
+```bash
+ros2 run arm_lab_kinematics topp --to 0.62 -0.20 0.18
+```
+
+With the path fixed as q(s) the dynamics collapse to `tau = a(s)·s̈ + b(s)·ṡ² +
+c(s)`, affine in path acceleration and squared path velocity. The largest
+feasible ṡ² is found by bisection, then a forward pass at maximum acceleration
+and a backward pass at maximum deceleration give the fastest legal profile.
+
+Each constraint family — joint speed, joint acceleration, actuator torque, TCP
+speed cap — is evaluated *separately* so the tool can say which one is binding
+rather than assume. It then integrates, evaluates the true torques, and pulls
+the velocity curve down until they actually comply; a coarse grid otherwise lets
+the realised torque overshoot the budget it was supposed to respect. When even
+zero speed cannot comply, it says so rather than reporting a number: below the
+gravity floor there is no speed slow enough.
+
+### ISO 9283 accuracy and repeatability
+
+```bash
+ros2 run arm_lab_kinematics iso9283 --cycles 30 --payload 2.0
+ros2 run arm_lab_kinematics iso9283 --units 5     # five built arms
+```
+
+The standard industrial robots are actually quoted against: a cube inscribed in
+the busiest part of the working space, five poses on one diagonal plane, 30
+cycles, every pose approached from the same direction. Reports **AP** (pose
+accuracy), **RP** (pose repeatability, `l̄ + 3σ`), orientation accuracy and
+repeatability, and **AT/RT** path accuracy along the P1–P2 line.
+
+What makes the numbers mean anything is the error model behind them, which
+separates:
+
+- **systematic** — link machining tolerance, joint zero offsets, gravity droop,
+  and backlash when every pose is approached from the same direction. These move
+  the mean, so they set **accuracy**, and calibration or a vision loop removes
+  them.
+- **random** — stiction and control deadband, redrawn on every approach. These
+  set **repeatability**, and nothing removes them.
+
+ISO 9283 mandates single-direction approach precisely so backlash lands in the
+first bucket; that is modelled rather than assumed away. `--units N` builds N
+different arms off the same drawing, which shows accuracy scattering while
+repeatability stays put.
+
+### MoveIt 2 configuration
+
+```bash
+ros2 run arm_lab_kinematics moveit_gen -o moveit_config
+```
+
+Writes SRDF, `kinematics.yaml`, `joint_limits.yaml`, `moveit_controllers.yaml`
+and `ompl_planning.yaml`. Pair it with the URDF from `urdf_gen`. Generated and
+schema-checked, but **not** run through `move_group` here.
+
+---
+
 ## How the numbers are computed
 
 - **Forward kinematics / Jacobian** — world-frame recursion over the chain.
@@ -201,10 +359,14 @@ exactly what was fed to Gazebo.
 
 ### What the model does not cover
 
-Backlash, encoder resolution, thermal derating, harness drag, control loop
-jitter, and vision-loop error. The droop figure is a lower bound on positioning
-error, not the whole budget. Repeatability in particular is not simulated — the
-report says so rather than inventing a number.
+Thermal derating, harness drag, control-loop jitter, and the vision loop itself.
+Backlash, encoder resolution, stiction and build tolerances *are* modelled, but
+only in the ISO 9283 path (`arm_lab_kinematics`); the `spec_report` droop figure
+remains deflection alone and is a lower bound on positioning error, not the
+whole budget. Take the accuracy number from `iso9283`, not from `spec_report`.
+
+Contact and grasping physics are Gazebo's, not the model's: the payload figures
+assume the load is held rigidly at the TCP, not that the gripper can grip it.
 
 ### Torque shown in the dashboard
 
@@ -257,9 +419,45 @@ endpoints. If 0.20 m/s is a safety requirement it needs a Cartesian speed
 monitor; trajectory timing will not deliver it.
 
 Two more results that were never in doubt but are now quantified: payload
-capacity is **3.94 kg at full reach** and **7.19 kg at 700 mm** against 2.0 and
+capacity is **4.00 kg at full reach** and **7.65 kg at 700 mm** against 2.0 and
 3.0 kg targets, so there is real margin; and the CAN bus sits at **36 % load**
 at 200 Hz, so the 1 Mbit/s classical bus can stay.
+
+### What the kinematics analysis added
+
+**Reach is not workspace.** Of the 3.2 m³ the TCP can reach, only **29 % allows
+the tool to point down** and only **13 % is fully dexterous**. For an arm whose
+job is picking samples off the ground, the tool-down volume is the real working
+volume, and it is under a third of the headline number.
+
+**The 0.20 m/s speed limit is not achievable everywhere.** At full reach the arm
+sits in a double singularity — wrist axes aligned *and* fully stretched,
+condition number 372 — and the guaranteed TCP speed in the worst direction
+collapses to **0.049 m/s**, a quarter of the spec. The 2.9 m/s figure quoted
+earlier is the *best* direction. A speed specification has to be met in the
+direction the arm is worst at, not the one it is best at.
+
+**Cartesian control fixes the speed overshoot.** Commanding 0.20 m/s through the
+joint-space trajectory controller peaks at **0.315 m/s**; the Cartesian planner
+holds **0.200 m/s exactly** over a path measurably equal to the straight line.
+
+**Accuracy now has a standards-traceable number.** ISO 9283 over 30 cycles with
+2 kg gives **AP 4.3 mm** and **RP 0.43 mm** against 10 mm and 3 mm targets. Over
+five different built arms AP spreads from 4.3 to 6.9 mm while RP stays at
+0.35–0.43 mm — accuracy scatters with build tolerances, repeatability does not.
+Both pass, and the accuracy margin is thinner than the repeatability margin.
+
+**The acceleration ceiling, not the actuators, limits cycle time.** At the
+configured 3 rad/s² the arm is acceleration-bound over the whole path and never
+reaches its joint speed limits; peak torque sits at 54 % of what the actuators
+can deliver. Raising the ceiling to 10 rad/s² cuts the move from 2.04 s to
+1.37 s before joint *speed* becomes the constraint. Torque only starts binding
+below about half the installed budget.
+
+**A stow pose in the shipped config self-collided.** The capsule checker caught
+it, and it was replaced with a verified pose (9 mm clearance, TCP 10 mm off the
+base axis). Separately, 71 % of random joint configurations self-collide, which
+is the argument for running a planner rather than interpolating between poses.
 
 ---
 

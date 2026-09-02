@@ -251,6 +251,34 @@ can_bus:
   max_utilisation: 0.60       # design rule: stay under 60 % bus load
 
 # -----------------------------------------------------------------------------
+# Error sources, used by the ISO 9283 accuracy test and the error budget.
+#
+# Systematic errors are fixed for a given built arm and move the mean, so they
+# set ACCURACY and a calibration or vision loop can take them out. Random errors
+# differ on every approach, so they set REPEATABILITY and nothing removes them.
+# -----------------------------------------------------------------------------
+errors:
+  backlash_arcmin: 3.0          # gearbox lost motion, output side, peak-to-peak
+  encoder_bits: 17              # motor-side absolute encoder resolution
+  joint_zero_offset_arcmin: 2.0 # assembly + calibration residual, 1 sigma
+  link_length_tolerance: 0.0005 # machining tolerance on tube length, m, 1 sigma
+  stiction_deadband_arcmin: 0.5 # RANDOM, redrawn per approach, 1 sigma
+  include_compliance: true      # gravity droop through the gearboxes
+  thermal_drift_arcmin: 0.0     # slow systematic; set non-zero to study it
+
+# -----------------------------------------------------------------------------
+# Motion limits used by the Cartesian planner and the time-optimal
+# parameterisation. Joint acceleration defaults to whatever the torque limits
+# allow, so leave it out unless the drive electronics cap it lower.
+# -----------------------------------------------------------------------------
+motion:
+  cartesian_speed: 0.20         # m/s at the TCP, the value the spec quotes
+  cartesian_accel: 0.30         # m/s^2 along the path
+  orientation_speed: 0.80       # rad/s
+  joint_acceleration: 3.0       # rad/s^2 ceiling, per joint
+  path_resolution: 0.005        # m between planned Cartesian waypoints
+
+# -----------------------------------------------------------------------------
 # Target specification — what the report grades against.
 # These are the numbers from the requirements table.
 # -----------------------------------------------------------------------------
@@ -283,7 +311,8 @@ spec_targets:
 # -----------------------------------------------------------------------------
 test_poses:
   home:        [0.0, -1.5708, 1.5708, 0.0, 0.0, 0.0]
-  stowed:      [0.0, -2.0, 2.4, 0.0, 1.1, 0.0]
+  # verified self-collision free (9.0 mm clearance) by `ros2 run arm_lab_kinematics collision_check`
+  stowed:      [0.444, -0.142, -2.389, -1.533, 0.024, -2.021]
   full_reach:  auto_full_reach
   reach_700:   auto_reach_0.700
   overhead:    [0.0, -0.6, 0.6, 0.0, 0.0, 0.0]
