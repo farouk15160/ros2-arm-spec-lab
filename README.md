@@ -206,6 +206,15 @@ ros2 run arm_lab_model verify_physics
 | Jacobian | finite differences | 2.3e-9 m/rad |
 | **Gazebo joint efforts** | **the model, at the poses Gazebo reached** | **0.0 %** |
 
+A fourth engine, **MuJoCo**, is wired up in `tools/mujoco_crosscheck.py` (it
+needs its own virtualenv). It agrees on gravity torque to 1e-5 N·m and on the
+Coriolis terms to 4e-6 N·m, and its imported masses, centres of mass and inertia
+tensors match the URDF to ~1e-6 — but it differs on the mass-matrix term by
+~2.5e-3 relative, and **that is not resolved**. Since KDL, Gazebo and the energy
+balance all agree with the model, the likeliest cause is the URDF-to-MJCF frame
+conversion rather than either dynamics implementation; generating MJCF directly
+would settle it. It is recorded as an open question, not as a passing check.
+
 KDL is an independent implementation by a different team, and it is fed the
 *exported URDF* rather than the internal model, so agreement checks the dynamics
 and the URDF export together. The energy balance is the Lagrangian statement of
@@ -236,6 +245,115 @@ Contact and grasping physics are Gazebo's, and its contact solver is not
 cross-checked against anything here. Friction, restitution and jaw grip are
 qualitative. Treat a successful simulated grasp as evidence the geometry and
 forces are plausible, not as a measurement.
+
+---
+
+## Engineering report: what rigid-body simulation cannot tell you
+
+```bash
+ros2 run arm_lab_model engineering_report
+ros2 run arm_lab_model engineering_report --stiffness-sweep --payload 3.0
+```
+
+Gazebo runs on an ideal clock, reads sensors with no quantisation, and never
+loses power. None of the following appears there however long you run it.
+
+### The numbers are sourced, not invented
+
+Joint stiffness is no longer typed in. Name a gearbox frame size and the
+**Harmonic Drive CSF/CSG torsional stiffness table** is looked up, then put in
+series with the bracket and bearing stiffness:
+
+```yaml
+gearbox_series: CSF
+gearbox_size: 32          # -> catalogue K3 = 120 000 N.m/rad
+bracket_stiffness: 25000
+bearing_stiffness: 40000  # -> real joint stiffness 13 636 N.m/rad
+```
+
+That factor-of-nine gap is the point. A published identification of a joint test
+bench measured 891 N·m/rad where the reducer alone is orders of magnitude
+stiffer, because everything in series with it is softer. Quoting a catalogue K3
+as the joint stiffness is the most optimistic assumption available in arm
+design, and it is the one the accuracy budget rests on.
+
+The gear also **stiffens with load** — the catalogue gives three segments
+(K1/K2/K3), so a lightly loaded joint is roughly half as stiff as its headline
+figure. Electrical figures are the CubeMars AK80-9 class (Kt 0.105 N·m/A,
+0.17 Ω phase-to-phase).
+
+### Actuators: torque, speed and heat
+
+Peak torque on a data sheet is a stall number. The report computes the
+**torque–speed envelope** from Kt, winding resistance and bus voltage, so a
+joint whose commanded speed sits past its corner speed is flagged; and a
+**first-order thermal model** (winding resistance rising ~50 % by 155 °C) turns
+"peak torque" into "how long can it hold this". On this arm every joint holds
+its rated load continuously, with the shoulder winding settling at 44 °C.
+
+### Structure: buckling, fatigue, bearings, real mass
+
+Euler *and* local shell buckling — the second is what catches thin tubes, since
+it depends on wall thickness over radius rather than length. Goodman fatigue
+with Marin corrections and an S-N life. Bearing L10. And a stated mass
+correction: the tube model counts the tube and nothing bolted to it, so
+
+```
+idealised tube mass    8.21 kg
+with real hardware     9.35 kg     <- compare this against a mass budget
+```
+
+For this arm the strength margins are enormous, which is itself the finding:
+**these tubes are stiffness-driven, not strength-driven.**
+
+### System: timing, sensing, power, holding
+
+- **CAN latency** 1950 µs worst case → 0.39 mm of TCP lag at 0.20 m/s, 7° of
+  phase lost at 10 Hz.
+- **Contact detection**: motor current resolves 0.9 N at the TCP, and *joint
+  friction, not the ADC, sets that floor*. A wrist F/T sensor resolves 0.1 N
+  because it sits outboard of the gearbox. Both clear the 20 N limit — my
+  earlier concern that current sensing would be inadequate was overstated.
+- **Regeneration**: lowering 9.3 kg at 0.20 m/s returns ~13 W to the 48 V bus,
+  which with no brake resistor has to go into the bus capacitance or the supply.
+
+### Holding with no brakes and a second encoder
+
+This is the configuration you specified, and the report is specific about what
+it buys and what it costs.
+
+**Cost — a power loss is not a stop.** Four of six joints backdrive under their
+own holding load (the shoulder holds 50 N·m against a 1.3 N·m backdrive
+threshold). Shorting the motor phases turns the fall into a *slow descent*, not
+a hold: the shoulder settles at 0.100 rad/s. So the drive must short the phases
+on power loss rather than going high-impedance, and the arm should be parked
+where a slow descent is safe.
+
+**Benefit — it removes most of the position error.** A motor-side encoder cannot
+see gearbox wind-up; it measures the motor. An output encoder measures the joint
+where it actually is:
+
+```
+total TCP droop  5.78 mm  ->  0.58 mm once the output encoders correct it
+```
+
+It also returns absolute position after a power loss, which is what a brakeless
+arm needs instead of a homing move.
+
+### Stiffness sensitivity
+
+```
+ stiffness   joint N.m/rad   TCP droop   vs 10 mm spec
+     0.25x            2048      22.92mm            FAIL
+     0.50x            4096      11.49mm            FAIL
+     1.00x            8192       5.77mm            pass
+     2.00x           16385       2.91mm            pass
+```
+
+Below about 4 600 N·m/rad the accuracy specification fails. The design has a
+factor of 1.8 in hand on the least-known number in the model — which is the
+number to demand from a supplier and to measure on a bench before believing any
+of this.
 
 ---
 

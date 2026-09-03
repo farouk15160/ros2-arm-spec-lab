@@ -66,6 +66,26 @@ class Actuator:
     friction: float
     quiescent_power: float
     bus_voltage: float
+    # --- electrical, from the motor data sheet -------------------------------
+    torque_constant: float = 0.0      # N.m/A motor side; 0 = not specified
+    phase_resistance: float = 0.0     # ohm phase-to-phase at 20 C
+    phase_inductance: float = 0.0
+    max_phase_current: float = 0.0
+    # --- thermal -------------------------------------------------------------
+    thermal_resistance: float = 1.5   # K/W winding to ambient
+    thermal_capacity: float = 150.0   # J/K
+    max_winding_temp: float = 155.0
+    ambient_temp: float = 25.0
+    insulation_class: str = 'H'
+    # --- feedback ------------------------------------------------------------
+    encoder_bits: int = 17            # motor side
+    output_encoder_bits: int = 0      # second encoder on the output; 0 = none
+    # --- gearbox, for deriving stiffness from the catalogue -------------------
+    gearbox_series: str = ''          # 'CSF' selects the Harmonic Drive table
+    gearbox_size: int = 0
+    bracket_stiffness: float = 0.0    # N.m/rad, structure in series
+    bearing_stiffness: float = 0.0
+    gearbox_stiffness: float = 0.0    # filled in from the catalogue
 
     @property
     def output_peak_torque(self) -> float:
@@ -101,6 +121,21 @@ class Actuator:
             friction=float(d.get('friction', 0.0)),
             quiescent_power=float(d.get('quiescent_power', 0.0)),
             bus_voltage=float(d.get('bus_voltage', 48.0)),
+            torque_constant=float(d.get('torque_constant', 0.0)),
+            phase_resistance=float(d.get('phase_resistance', 0.0)),
+            phase_inductance=float(d.get('phase_inductance', 0.0)),
+            max_phase_current=float(d.get('max_phase_current', 0.0)),
+            thermal_resistance=float(d.get('thermal_resistance', 1.5)),
+            thermal_capacity=float(d.get('thermal_capacity', 150.0)),
+            max_winding_temp=float(d.get('max_winding_temp', 155.0)),
+            ambient_temp=float(d.get('ambient_temp', 25.0)),
+            insulation_class=str(d.get('insulation_class', 'H')),
+            encoder_bits=int(d.get('encoder_bits', 17)),
+            output_encoder_bits=int(d.get('output_encoder_bits', 0)),
+            gearbox_series=str(d.get('gearbox_series', '')),
+            gearbox_size=int(d.get('gearbox_size', 0)),
+            bracket_stiffness=float(d.get('bracket_stiffness', 0.0)),
+            bearing_stiffness=float(d.get('bearing_stiffness', 0.0)),
         )
 
 
@@ -305,6 +340,29 @@ class ArmConfig:
         return entry
 
 
+def _derive_joint_stiffness(act: Actuator) -> None:
+    """Replace a guessed joint stiffness with one derived from the catalogue.
+
+    A named gearbox gives a real K3 from the manufacturer's torsional stiffness
+    table. That is the *gearbox*, not the joint: brackets and bearings sit in
+    series with it and are usually far softer, so quoting the catalogue figure
+    as the joint stiffness overstates it by an order of magnitude. When those
+    are given too, they are combined properly.
+    """
+    if not act.gearbox_series or not act.gearbox_size:
+        return
+    from .reference import gearbox_table, structural_series_stiffness
+    table = gearbox_table(act.gear_ratio)
+    entry = table.get(act.gearbox_size)
+    if entry is None:
+        raise KeyError(
+            f'{act.name}: no catalogue entry for size {act.gearbox_size}; '
+            f'available {sorted(table)}')
+    act.gearbox_stiffness = entry.k3
+    act.joint_stiffness = structural_series_stiffness(
+        entry.k3, act.bracket_stiffness, act.bearing_stiffness)
+
+
 def _pad(values: List[float], n: int) -> List[float]:
     values = [float(v) for v in values]
     if len(values) < n:
@@ -340,6 +398,8 @@ def load_config(path: str | None = None,
 
     materials = {k: Material.from_dict(k, v) for k, v in raw['materials'].items()}
     actuators = {k: Actuator.from_dict(k, v) for k, v in raw['actuators'].items()}
+    for act in actuators.values():
+        _derive_joint_stiffness(act)
 
     def _material(key: str) -> Material:
         if key not in materials:
