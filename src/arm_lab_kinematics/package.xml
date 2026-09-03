@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>arm_lab_kinematics</name>
+  <version>1.0.0</version>
+  <description>
+    Kinematics test bench for the rover arm: full 6-DOF inverse kinematics,
+    reachable and dexterous workspace mapping, singularity analysis, capsule
+    self-collision checking, Cartesian straight-line motion with a real TCP
+    speed limit, time-optimal trajectory timing under torque limits, ISO 9283
+    accuracy and repeatability testing with error injection, and MoveIt 2
+    configuration generation.
+  </description>
+  <maintainer email="farouk15160@gmail.com">farouk</maintainer>
+  <license>Apache-2.0</license>
+
+  <depend>arm_lab_model</depend>
+  <depend>rclpy</depend>
+  <depend>sensor_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>trajectory_msgs</depend>
+  <depend>visualization_msgs</depend>
+  <depend>builtin_interfaces</depend>
+  <depend>python3-numpy</depend>
+  <depend>python3-yaml</depend>
+
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

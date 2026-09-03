@@ -5,6 +5,7 @@ dynamics is cross-checked against the gradient of potential energy and the
 Jacobian against finite differences, rather than against itself.
 """
 
+import math
 import os
 
 import numpy as np
@@ -55,8 +56,58 @@ def test_reach_never_exceeds_the_geometric_limit(model):
 
 
 def test_full_reach_pose_actually_stretches_out(model):
+    """Within a whisker of the geometric limit, but not exactly on it.
+
+    `geometric_max_reach` is the sum of the link lengths: it assumes every link
+    is perfectly collinear. The generated pose also has to keep the tool axis
+    aligned with the reach direction, which is what stops the solver folding the
+    wrist, and paying for that alignment costs a few millimetres of extension.
+    Demanding the full geometric reach here would be demanding a pose that
+    doubles the tool back on itself.
+    """
     q = model.resolve_pose('auto_full_reach')
-    assert model.reach(q) == pytest.approx(model.geometric_max_reach, rel=2e-3)
+    reach = model.reach(q)
+    assert reach <= model.geometric_max_reach + 1e-9
+    assert reach >= 0.99 * model.geometric_max_reach
+
+
+def test_generated_reach_poses_hit_their_radius(model):
+    """Radii inside the achievable band are hit exactly.
+
+    The band has a floor: with the tool held pointing outward the arm cannot
+    fold below roughly the length of its own wrist and tool, so a request below
+    that returns the closest achievable pose rather than the requested radius.
+    """
+    for radius in (0.5, 0.7, 0.9):
+        q = model.resolve_pose(f'auto_reach_{radius:.3f}')
+        assert model.reach(q) == pytest.approx(radius, abs=2e-3)
+
+
+def test_unreachably_tight_radius_returns_the_closest_pose(model):
+    """Below the floor it returns the nearest pose it can, not an error.
+
+    Holding the tool pointing outward, this arm cannot place its TCP 100 mm from
+    the shoulder. What it can do is fold back on itself until the TCP sits close
+    to the shoulder axis, and that is what comes back -- a legal, in-limits pose
+    whose reach is simply not the number that was asked for.
+    """
+    q = model.resolve_pose('auto_reach_0.100')
+    assert np.all(q >= model.lower - 1e-9)
+    assert np.all(q <= model.upper + 1e-9)
+    assert model.reach(q) < 0.5
+
+
+def test_reach_poses_keep_the_tool_pointing_outward(model):
+    """The property that keeps these poses out of self-collision."""
+    for radius in (0.5, 0.7, 0.9):
+        q = model.resolve_pose(f'auto_reach_{radius:.3f}')
+        fs = model.frames(q)
+        outward = fs.tcp - fs.reach_origin
+        outward = outward / np.linalg.norm(outward)
+        alignment = float(fs.link_dir[-1] @ outward)
+        assert alignment > 0.9, (
+            f'at r={radius} the tool axis is {math.degrees(math.acos(alignment)):.0f}'
+            ' deg off the reach direction, so the arm is folded')
 
 
 def test_jacobian_matches_finite_differences(model):
@@ -183,3 +234,108 @@ def test_generated_controller_yaml_has_no_aliases(cfg, tmp_path):
     path = dump_controllers(cfg, str(tmp_path / 'controllers.yaml'))
     text = open(path).read()
     assert '&id' not in text and '*id' not in text
+
+
+# ---------------------------------------------------------------------------
+# Physics verification against independent implementations. These are the
+# checks that decide whether anything else in the workspace can be believed.
+# ---------------------------------------------------------------------------
+
+def test_dynamics_matches_orocos_kdl(cfg):
+    """Cross-check the inverse dynamics against a different team's RNE.
+
+    KDL is fed the *generated URDF*, so this validates the dynamics and the
+    URDF export together.
+    """
+    from arm_lab_model import verification
+    if not verification.HAVE_KDL:
+        pytest.skip('PyKDL not available')
+    plain = verification._fingerless(cfg)
+    for gravity_only in (True, False):
+        check = verification.compare_dynamics(plain, samples=60,
+                                              gravity_only=gravity_only)
+        assert check.passed, check.detail
+
+
+def test_forward_kinematics_matches_orocos_kdl(cfg):
+    from arm_lab_model import verification
+    if not verification.HAVE_KDL:
+        pytest.skip('PyKDL not available')
+    check = verification.compare_forward_kinematics(
+        verification._fingerless(cfg), samples=60)
+    assert check.passed, check.detail
+
+
+def test_joint_power_equals_rate_of_change_of_energy(cfg):
+    """Newton-Euler against the Lagrangian statement of the same mechanics."""
+    from arm_lab_model import verification
+    check = verification.check_energy_balance(cfg, samples=30)
+    assert check.passed, check.detail
+
+
+def test_point_mass_pendulum_is_exact():
+    from arm_lab_model import verification
+    check = verification.check_point_mass_pendulum()
+    assert check.passed, check.detail
+
+
+def test_end_effector_rotational_inertia_is_modelled(model):
+    """Accelerating the wrist about the tool must cost more than a point mass.
+
+    The tool was modelled as a point mass at first; KDL caught it.
+    """
+    q = model.resolve_pose('home')
+    fs = model.frames(q)
+    assert fs.ee_inertia.any(), 'the tool has no rotational inertia'
+    qdd = np.zeros(model.n)
+    qdd[-1] = 5.0
+    with_inertia = model.inverse_dynamics(q, qdd=qdd, include_friction=False)
+    baseline = model.gravity_torque(q)
+    extra = abs(with_inertia[-1] - baseline[-1])
+    assert extra > model.reflected_inertia[-1] * 5.0
+
+
+def test_urdf_gripper_centre_of_mass_matches_the_config(cfg):
+    """`com_offset` describes the whole tool, jaws included.
+
+    The URDF splits the tool into a body and two jaw links, so the body has to
+    be placed such that the combined centre of mass lands back on the configured
+    offset. Getting this wrong left the URDF a few centimetres of lever arm
+    heavier than the model, which showed up against Gazebo as a constant
+    0.094 N.m offset on the wrist joints.
+    """
+    import xml.etree.ElementTree as ET
+
+    from arm_lab_model.urdf_builder import build_urdf
+    from arm_lab_model.kinematics import ArmModel
+
+    ee = cfg.end_effector
+    if not ee.simulate_fingers:
+        pytest.skip('jaws not simulated')
+
+    root = ET.fromstring(build_urdf(cfg))
+    model = ArmModel(cfg)
+    flange = np.asarray(cfg.joints[-1].link.direction, dtype=float)
+
+    total_mass = 0.0
+    moment = np.zeros(3)
+    for link in root.findall('link'):
+        name = link.get('name')
+        if not (name.startswith(ee.name) or name == 'tcp_link'):
+            continue
+        inertial = link.find('inertial')
+        if inertial is None:
+            continue
+        mass = float(inertial.find('mass').get('value'))
+        origin = inertial.find('origin')
+        text = '0 0 0' if origin is None else (origin.get('xyz') or '0 0 0')
+        local = np.array([float(v) for v in text.split()])
+        # The jaw links hang off the gripper body, so add their mount offset.
+        if 'finger' in name:
+            local = local + flange * ee.body_length
+        total_mass += mass
+        moment += mass * local
+
+    assert total_mass == pytest.approx(ee.mass, abs=1e-5)
+    centre = moment / total_mass
+    assert float(centre @ flange) == pytest.approx(ee.com_offset, abs=1e-6)

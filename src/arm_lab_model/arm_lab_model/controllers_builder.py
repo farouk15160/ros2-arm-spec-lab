@@ -49,7 +49,10 @@ def _gains(cfg: ArmConfig, command_interface: str) -> Dict[str, Any]:
                 'ff_velocity_scale': 0.0,
             }
         else:
-            # Velocity per radian of error, i.e. a 1/s gain.
+            # Velocity per radian of error, i.e. a 1/s gain. The integral term
+            # is what removes steady-state droop: without enough of it the arm
+            # holds a pose tens of millimetres below the one it was asked for,
+            # which is invisible until something has to be grasped.
             out[joint.name] = {
                 'p': round(p_scale, 4),
                 'i': round(i_scale, 4),
@@ -81,7 +84,9 @@ def build_controllers(cfg: ArmConfig,
     }
     if finger_joints:
         manager[GRIPPER_CONTROLLER] = {
-            'type': 'position_controllers/JointGroupPositionController'}
+            'type': ('effort_controllers/JointGroupEffortController'
+                     if cfg.end_effector.grasp_mode == 'force'
+                     else 'position_controllers/JointGroupPositionController')}
     if ci == 'velocity':
         # Spare controller for raw speed sweeps; started on demand.
         manager[SPEED_CONTROLLER] = {

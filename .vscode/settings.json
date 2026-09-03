@@ -1,0 +1,20 @@
+{
+    "python.autoComplete.extraPaths": [
+        "/home/farouk/Desktop/code/robotics_and_ros/ros2_robot_arm_calc_/build/arm_lab_kinematics",
+        "/home/farouk/Desktop/code/robotics_and_ros/ros2_robot_arm_calc_/install/arm_lab_kinematics/lib/python3.12/site-packages",
+        "/home/farouk/Desktop/code/robotics_and_ros/ros2_robot_arm_calc_/build/arm_lab_gui",
+        "/home/farouk/Desktop/code/robotics_and_ros/ros2_robot_arm_calc_/install/arm_lab_gui/lib/python3.12/site-packages",
+        "/home/farouk/Desktop/code/robotics_and_ros/ros2_robot_arm_calc_/build/arm_lab_model",
+        "/home/farouk/Desktop/code/robotics_and_ros/ros2_robot_arm_calc_/install/arm_lab_model/lib/python3.12/site-packages",
+        "/opt/ros/jazzy/lib/python3.12/site-packages"
+    ],
+    "python.analysis.extraPaths": [
+        "/home/farouk/Desktop/code/robotics_and_ros/ros2_robot_arm_calc_/build/arm_lab_kinematics",
+        "/home/farouk/Desktop/code/robotics_and_ros/ros2_robot_arm_calc_/install/arm_lab_kinematics/lib/python3.12/site-packages",
+        "/home/farouk/Desktop/code/robotics_and_ros/ros2_robot_arm_calc_/build/arm_lab_gui",
+        "/home/farouk/Desktop/code/robotics_and_ros/ros2_robot_arm_calc_/install/arm_lab_gui/lib/python3.12/site-packages",
+        "/home/farouk/Desktop/code/robotics_and_ros/ros2_robot_arm_calc_/build/arm_lab_model",
+        "/home/farouk/Desktop/code/robotics_and_ros/ros2_robot_arm_calc_/install/arm_lab_model/lib/python3.12/site-packages",
+        "/opt/ros/jazzy/lib/python3.12/site-packages"
+    ]
+}

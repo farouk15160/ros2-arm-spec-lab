@@ -56,18 +56,38 @@ materials:
 # Actuator library. torque_limit = peak_torque * gear_ratio * efficiency
 # -----------------------------------------------------------------------------
 actuators:
-  big_shoulder:               # e.g. quasi-direct-drive + harmonic stage
+  # Electrical figures are the CubeMars AK80-9 class (Kt 0.105 N.m/A,
+  # 0.17 ohm phase-to-phase). Gearbox stiffness is NOT typed in: name a
+  # Harmonic Drive CSF frame size and the catalogue K3 is looked up, then put
+  # in series with the bracket and bearing stiffness to get the real joint
+  # stiffness. Leave gearbox_series blank to use joint_stiffness directly.
+  big_shoulder:               # strain-wave stage, shoulder class
     peak_torque: 1.30         # motor-side peak, N.m
     continuous_torque: 0.55   # motor-side continuous, N.m
     gear_ratio: 100.0
     efficiency: 0.75
     rotor_inertia: 6.0e-5     # motor-side, kg.m^2 (reflected as J*n^2)
     max_motor_speed: 314.0    # rad/s motor-side (~3000 rpm)
-    mass: 1.05                # actuator + bearing + brake, kg
-    joint_stiffness: 12000.0  # output-side torsional stiffness, N.m/rad
+    mass: 1.05                # actuator + bearing, kg (no brake fitted)
+    joint_stiffness: 12000.0  # overridden by the gearbox lookup below
     friction: 0.9             # output-side static/coulomb friction, N.m
     quiescent_power: 6.0      # W, holding/electronics overhead
     bus_voltage: 48.0
+    torque_constant: 0.105    # N.m/A, motor side
+    phase_resistance: 0.170   # ohm phase-to-phase at 20 C
+    phase_inductance: 5.7e-5
+    max_phase_current: 13.0   # A; 1.30 N.m / 0.105 N.m/A = 12.4 A
+    thermal_resistance: 1.4   # K/W winding to ambient
+    thermal_capacity: 180.0   # J/K  -> time constant about 250 s
+    max_winding_temp: 155.0
+    ambient_temp: 25.0
+    insulation_class: H
+    encoder_bits: 17          # motor-side absolute encoder
+    output_encoder_bits: 19   # SECOND encoder on the joint output
+    gearbox_series: CSF       # Harmonic Drive CSF/CSG torsional stiffness table
+    gearbox_size: 32
+    bracket_stiffness: 25000.0
+    bearing_stiffness: 40000.0
   mid_elbow:
     peak_torque: 0.90
     continuous_torque: 0.38
@@ -80,6 +100,21 @@ actuators:
     friction: 0.6
     quiescent_power: 5.0
     bus_voltage: 48.0
+    torque_constant: 0.105
+    phase_resistance: 0.170
+    phase_inductance: 5.7e-5
+    max_phase_current: 9.0    # 0.90 / 0.105 = 8.6 A
+    thermal_resistance: 1.8
+    thermal_capacity: 130.0
+    max_winding_temp: 155.0
+    ambient_temp: 25.0
+    insulation_class: H
+    encoder_bits: 17
+    output_encoder_bits: 19
+    gearbox_series: CSF
+    gearbox_size: 25
+    bracket_stiffness: 18000.0
+    bearing_stiffness: 30000.0
   small_wrist:
     peak_torque: 0.42
     continuous_torque: 0.18
@@ -92,6 +127,21 @@ actuators:
     friction: 0.25
     quiescent_power: 3.5
     bus_voltage: 24.0
+    torque_constant: 0.095
+    phase_resistance: 0.230
+    phase_inductance: 4.0e-5
+    max_phase_current: 4.6    # 0.42 / 0.095 = 4.4 A
+    thermal_resistance: 2.6
+    thermal_capacity: 70.0
+    max_winding_temp: 155.0
+    ambient_temp: 25.0
+    insulation_class: H
+    encoder_bits: 17
+    output_encoder_bits: 19
+    gearbox_series: CSF
+    gearbox_size: 17
+    bracket_stiffness: 9000.0
+    bearing_stiffness: 15000.0
 
 # -----------------------------------------------------------------------------
 # The kinematic chain, proximal -> distal.
@@ -132,7 +182,7 @@ joints:
     limits: {lower: -2.10, upper: 2.10, velocity: 1.20}
     link:
       name: link_2            # upper arm
-      length: 0.450
+      length: 0.415
       outer_diameter: 0.080
       wall_thickness: 0.0025
       material: cfrp_tube
@@ -148,7 +198,7 @@ joints:
     limits: {lower: -2.60, upper: 2.60, velocity: 1.60}
     link:
       name: link_3            # forearm
-      length: 0.380
+      length: 0.340
       outer_diameter: 0.070
       wall_thickness: 0.0025
       material: cfrp_tube
@@ -210,7 +260,9 @@ joints:
 end_effector:
   name: gripper
   mass: 1.05                  # WHOLE assembly: body + actuator + both jaws
-  tcp_offset: 0.050           # flange -> TCP, m (grasp point inside the jaws)
+  tcp_offset: 0.125           # flange -> TCP: mid-jaw, i.e. body_length
+                              # + finger_length/2. The TCP must lie BETWEEN
+                              # the jaws or every grasp closes on air.
   com_offset: 0.045           # flange -> gripper CoM, m
   body_length: 0.090
   body_width: 0.100
@@ -224,6 +276,14 @@ end_effector:
   finger_thickness: 0.012
   finger_width: 0.030
   finger_mass: 0.06           # per jaw, carved out of `mass` above
+  # How the jaws are driven in simulation.
+  #   force    - the jaws are commanded a squeeze force and the contact decides
+  #              where they stop. This is how a real gripper holds an object,
+  #              and the only mode in which a grasp can actually carry a load.
+  #   position - the jaws are driven to a commanded opening. Simpler, but the
+  #              position controller will shove an object aside rather than
+  #              grip it.
+  grasp_mode: force
   grip_force_min: 10.0        # N
   grip_force_max: 100.0       # N
   grip_speed: 0.05            # m/s per jaw
@@ -236,6 +296,11 @@ control:
   command_interface: velocity # velocity | position | effort (launch-overridable)
   dynamic_torque_reserve: 0.25  # fraction of peak torque held back for accel
   gains:                      # JTC gains, scaled per joint (see docs in README)
+    # In velocity mode these map position error to a velocity command.
+    # Measured tracking with these values is a few centimetres off under
+    # gravity, which is fine for load and speed studies and NOT fine for
+    # grasping. Raising them further was tried and made it worse, not better.
+    # See the manipulation note in the README.
     p_scale: 12.0
     i_scale: 0.4
     d_scale: 1.2
@@ -249,6 +314,71 @@ can_bus:
   frames_per_joint_per_cycle: 2   # 1 command + 1 feedback
   bits_per_frame: 130         # 11-bit ID, 8 data bytes, worst-case stuffing
   max_utilisation: 0.60       # design rule: stay under 60 % bus load
+
+# -----------------------------------------------------------------------------
+# Corrections and system-level assumptions.
+#
+# The tube model counts the tube. It does not count end fittings, bosses,
+# fastener heads, cable clips or the harness, and those land mostly at the
+# joints where they cost the most torque. A blanket factor is crude, but a
+# crude correction that is written down beats an implicit factor of 1.0.
+# -----------------------------------------------------------------------------
+mass_model:
+  structure_factor: 1.25        # tube mass -> real machined part
+  fastener_fraction: 0.03
+  harness_per_joint: 0.08       # kg of cable and connector per joint
+
+structure:
+  end_fixity: fixed-pinned      # for the Euler buckling check
+  target_cycles: 1.0e6          # fatigue life to design to
+  surface_factor: 0.75          # machined finish
+  bearing_rating: 12000.0       # N, basic dynamic load rating C
+  duty_revolutions_per_hour: 600.0
+  target_hours: 20000.0
+
+realtime:
+  loop_bandwidth: 10.0          # Hz, assumed closed-loop position bandwidth
+  tcp_lag_budget: 0.001         # m of TCP lag allowed from bus latency
+
+sensing:
+  current_sense_bits: 12
+  ft_sensor_resolution: 0.1     # N, if a wrist force/torque sensor is fitted
+  output_encoder_bits: 19
+
+holding:
+  # No brakes. The arm holds position on motor current, and after a power loss
+  # it relies on the gearbox being self-locking; the second encoder gives
+  # absolute output position back without a homing move.
+  brake_fitted: false
+  second_encoder: true
+
+# -----------------------------------------------------------------------------
+# Error sources, used by the ISO 9283 accuracy test and the error budget.
+#
+# Systematic errors are fixed for a given built arm and move the mean, so they
+# set ACCURACY and a calibration or vision loop can take them out. Random errors
+# differ on every approach, so they set REPEATABILITY and nothing removes them.
+# -----------------------------------------------------------------------------
+errors:
+  backlash_arcmin: 3.0          # gearbox lost motion, output side, peak-to-peak
+  encoder_bits: 17              # motor-side absolute encoder resolution
+  joint_zero_offset_arcmin: 2.0 # assembly + calibration residual, 1 sigma
+  link_length_tolerance: 0.0005 # machining tolerance on tube length, m, 1 sigma
+  stiction_deadband_arcmin: 0.5 # RANDOM, redrawn per approach, 1 sigma
+  include_compliance: true      # gravity droop through the gearboxes
+  thermal_drift_arcmin: 0.0     # slow systematic; set non-zero to study it
+
+# -----------------------------------------------------------------------------
+# Motion limits used by the Cartesian planner and the time-optimal
+# parameterisation. Joint acceleration defaults to whatever the torque limits
+# allow, so leave it out unless the drive electronics cap it lower.
+# -----------------------------------------------------------------------------
+motion:
+  cartesian_speed: 0.20         # m/s at the TCP, the value the spec quotes
+  cartesian_accel: 0.30         # m/s^2 along the path
+  orientation_speed: 0.80       # rad/s
+  joint_acceleration: 3.0       # rad/s^2 ceiling, per joint
+  path_resolution: 0.005        # m between planned Cartesian waypoints
 
 # -----------------------------------------------------------------------------
 # Target specification — what the report grades against.
@@ -283,7 +413,8 @@ spec_targets:
 # -----------------------------------------------------------------------------
 test_poses:
   home:        [0.0, -1.5708, 1.5708, 0.0, 0.0, 0.0]
-  stowed:      [0.0, -2.0, 2.4, 0.0, 1.1, 0.0]
+  # verified self-collision free (9.0 mm clearance) by `ros2 run arm_lab_kinematics collision_check`
+  stowed:      [0.444, -0.142, -2.389, -1.533, 0.024, -2.021]
   full_reach:  auto_full_reach
   reach_700:   auto_reach_0.700
   overhead:    [0.0, -0.6, 0.6, 0.0, 0.0, 0.0]

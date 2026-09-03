@@ -290,6 +290,18 @@ class SpecReport:
                   < 1e-6 else WARN,
                   'modelled as two prismatic jaws, each travelling half the stroke'
                   if ee.simulate_fingers else 'fingers not simulated'))
+        start, end = ee.jaw_span
+        add(Check('TCP inside the jaws',
+                  f'between {start * 1000:.0f} and {end * 1000:.0f} mm',
+                  f'{ee.tcp_offset * 1000:.0f} mm from the flange',
+                  PASS if ee.tcp_between_jaws else FAIL,
+                  'The TCP is the point the arm positions. If it does not lie '
+                  'between the jaws, every grasp closes on empty air while the '
+                  'object sits outside the gripper -- and it looks like a '
+                  'controller fault, not a geometry one.'
+                  if not ee.tcp_between_jaws else
+                  'the grasp point lies within the jaw travel'))
+
         add(Check('Gripper force',
                   f"{t.get('gripper_force_min', 0)}-"
                   f"{t.get('gripper_force_max', 0)} N adjustable",

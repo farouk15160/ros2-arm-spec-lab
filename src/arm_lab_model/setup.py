@@ -26,6 +26,8 @@ setup(
             'urdf_gen = arm_lab_model.cli:urdf_main',
             'controllers_gen = arm_lab_model.cli:controllers_main',
             'sweep = arm_lab_model.sweep:main',
+            'verify_physics = arm_lab_model.verification:main',
+            'engineering_report = arm_lab_model.engineering_report:main',
         ],
     },
 )
