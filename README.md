@@ -281,39 +281,35 @@ left the ground. Commanding a squeeze force and letting contact decide where the
 jaws stop is how a real gripper holds a load. Set `end_effector.grasp_mode` to
 `position` to see the difference.
 
-### Status: the cycle plans and executes; the grasp does not yet close on the object
+### Verified end to end in Gazebo
 
-This is worth stating plainly rather than burying.
+The full cycle runs and the object is actually moved. Measured on the shipped
+configuration, commanding a pick at (0.750, 0.000, 0.040) and a place at
+(0.450, −0.450, 0.040):
 
-**Works, and is measured:** all nine legs plan, every one is reachable and
-self-collision free, the arm executes them in Gazebo, and the TCP speed is held
-at 0.200 m/s throughout. Cycle time 12.8 s, peak torque 41 % of the actuator
-limit. Jaw force control works — commanding −90 N closes the jaws, +40 N opens
-them, verified against `/joint_states`.
+```
+object before   x 0.750   y  0.000   z 0.040
+object after    x 0.450   y -0.445   z 0.040      <- 5 mm from the commanded point
+```
 
-**Does not work:** the object is not picked up. What was measured, in position
-command mode where tracking is otherwise exact:
+Cycle time 12.8 s, TCP speed held at 0.200 m/s on every leg, peak torque 41 % of
+the actuator limit, no link-on-link contact.
 
-| commanded TCP | achieved | position error | joint error |
-|---|---|---|---|
-| z = 0.24 m | z = 0.240 | **0.0 mm** | 0.00° |
-| z = 0.08 m | z = 0.115 | **35.4 mm** | 2.70° |
+The grasp is checked rather than assumed: after closing, the jaw opening is read
+back from `/joint_states`. Jaws that shut to nothing closed on empty air, and
+the report says `GRASP FAILED` instead of quietly carrying on. A successful
+grasp reports the width it stopped at.
 
-Tracking is perfect at height and fails only close to the ground, so this is not
-a controller tuning problem — the descent is being blocked by contact. The jaws
-then close at z ≈ 0.115 while the box top is at 0.080, which is why they shut to
-zero on empty air. It is consistent with the `safety_map` self-collision band
-and with the earlier "tool at the deck" flag: the gripper is a 100 mm wide body
-with 70 mm jaws, and it cannot descend onto an 80 mm box on the ground without
-something touching first.
-
-Raising the trajectory gains was tried and made tracking *worse* (126 mm error),
-so the shipped gains are the better-measured ones.
-
-The likely fixes, untested: longer jaws relative to the body, a taller approach
-so the jaws straddle before the body arrives, or picking the object off a raised
-surface rather than the deck. `safety_map` and `pick_place --ros-args -p
-dry_run:=true` will both tell you before you run it in Gazebo.
+**The bug that made this hard is worth recording.** The first version decided
+whether to open or close by comparing the requested opening against the previous
+one. The leg named "open jaws" requested 130 mm while the code believed the jaws
+were at 180 mm, so it read as a *close* and commanded −90 N. The arm then rode
+down with the jaws shut, fouled the box, and stalled 35 mm above it — and every
+plan still reported success, because planning never knew. It presented as a
+tracking problem (35 mm position error near the ground, perfect tracking at
+height), which is exactly the wrong place to look. The grip action is now
+explicit, `'open'` or `'close'`, and an unknown value raises rather than
+guessing.
 
 ## Torque and power zones
 

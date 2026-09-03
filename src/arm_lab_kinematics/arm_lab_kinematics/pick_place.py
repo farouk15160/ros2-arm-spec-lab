@@ -41,7 +41,7 @@ class Leg:
     name: str
     target: np.ndarray
     payload: float                 # what the arm is carrying on this leg
-    grip: Optional[float] = None   # jaw opening to command after the move
+    grip: Optional[str] = None     # 'open' or 'close', commanded after the move
     settle: float = 0.6
 
 
@@ -57,6 +57,8 @@ class LegReport:
     collision: bool = False          # link on link: a real fault
     arm_near_ground: bool = False    # an arm link, not the tool, near the deck
     tool_ground_gap: float = math.inf
+    jaw_opening: Optional[float] = None   # measured after a grip action
+    grasp_ok: Optional[bool] = None
     notes: List[str] = field(default_factory=list)
 
 
@@ -74,6 +76,7 @@ class PickAndPlace(Node):
         self.declare_parameter('gripper_controller', 'gripper_controller')
         self.declare_parameter('dry_run', False)
         self.declare_parameter('grip_force', 60.0)
+        self.declare_parameter('open_force', 40.0)
 
         self.cfg = load_config(self.get_parameter('config_file').value or None)
         self.model = ArmModel(self.cfg)
@@ -103,16 +106,22 @@ class PickAndPlace(Node):
         self.create_subscription(JointState, '/joint_states', self._on_state, 20)
 
         self.q = np.zeros(self.model.n)
+        self.jaw = {}
         self.have_state = False
-        self._last_opening = self.cfg.end_effector.stroke
         self.grip_force = float(self.get_parameter('grip_force').value)
+        self.open_force = float(self.get_parameter('open_force').value)
+        self._grasp_width = max(
+            float(self.get_parameter('object_size').value) - 0.004, 0.0)
         self._index = {n: i for i, n in enumerate(self.cfg.joint_names)}
+        self._finger_names = set(self.cfg.end_effector.finger_joint_names)
 
     def _on_state(self, msg: JointState) -> None:
         for k, name in enumerate(msg.name):
             idx = self._index.get(name)
             if idx is not None and k < len(msg.position):
                 self.q[idx] = float(msg.position[k])
+            elif name in self._finger_names and k < len(msg.position):
+                self.jaw[name] = float(msg.position[k])
         self.have_state = True
 
     # ------------------------------------------------------------- sequence
@@ -123,8 +132,9 @@ class PickAndPlace(Node):
         size = float(self.get_parameter('object_size').value)
         lift = float(self.get_parameter('approach_height').value)
         ee = self.cfg.end_effector
-        open_wide = min(size + 0.05, ee.stroke)
-        closed = max(size - 0.004, 0.0)
+        # Squeeze past the faces so the jaws load up on the object instead of
+        # stopping exactly on it.
+        self._grasp_width = max(size - 0.004, 0.0)
 
         grasp = obj + np.array([0.0, 0.0, size / 2.0])
         above_pick = grasp + np.array([0.0, 0.0, lift])
@@ -132,42 +142,47 @@ class PickAndPlace(Node):
         above_place = release + np.array([0.0, 0.0, lift])
 
         return [
-            Leg('open jaws', above_pick, 0.0, grip=open_wide),
+            Leg('open jaws', above_pick, 0.0, grip='open'),
             Leg('approach object', above_pick, 0.0),
             Leg('descend to grasp', grasp, 0.0),
-            Leg('close on object', grasp, 0.0, grip=closed, settle=1.0),
+            Leg('close on object', grasp, 0.0, grip='close', settle=1.2),
             Leg('lift', above_pick, mass),
             Leg('traverse', above_place, mass),
             Leg('descend to place', release, mass),
-            Leg('release', release, 0.0, grip=open_wide, settle=0.8),
+            Leg('release', release, 0.0, grip='open', settle=0.8),
             Leg('retreat', above_place, 0.0),
         ]
 
-    def _send_gripper(self, opening: float) -> None:
-        """Open or close the jaws.
+    def _send_gripper(self, action: str) -> None:
+        """Open or close the jaws. The action is explicit, deliberately.
 
-        In force mode `opening` is only used to decide the sign: a squeeze force
-        to close, the same magnitude outward to open. The jaws then stop wherever
-        the object is, which is the only way a grasp carries a load.
+        Inferring it by comparing the requested opening against the previous one
+        is how the first version of this commanded a *close* for the leg named
+        "open jaws": the requested 130 mm opening was smaller than the 180 mm
+        it thought the jaws were already at. The arm then rode down with the
+        jaws shut, fouled the object, and stopped 35 mm short -- while every
+        plan still reported success.
+
+        The jaw joints travel from 0 (shut) to stroke/2 (open), so a positive
+        effort opens them and squeezing is a negative effort.
         """
         ee = self.cfg.end_effector
         names = ee.finger_joint_names
         if not names:
             return
+        if action not in ('open', 'close'):
+            raise ValueError(
+                f"grip action must be 'open' or 'close', got {action!r}")
+
         msg = Float64MultiArray()
         if ee.grasp_mode == 'force':
-            # The jaw joints travel from 0 (shut) to stroke/2 (open), so a
-            # POSITIVE effort along the joint axis opens them. Squeezing is
-            # therefore a negative effort. Getting this backwards leaves the
-            # jaws wide open at the moment they are supposed to grip, and the
-            # arm lifts nothing.
-            closing = opening < self._last_opening - 1e-6
-            force = -abs(self.grip_force) if closing else abs(ee.grip_force_min)
+            force = (-abs(self.grip_force) if action == 'close'
+                     else abs(self.open_force))
             msg.data = [float(force)] * len(names)
         else:
-            half = max(0.0, min(opening, ee.stroke)) / 2.0
-            msg.data = [half] * len(names)
-        self._last_opening = opening
+            width = ee.stroke if action == 'open' else self._grasp_width
+            half = max(0.0, min(width, ee.stroke)) / 2.0
+            msg.data = [float(half)] * len(names)
         self.grip_pub.publish(msg)
 
     def _spin(self, seconds: float) -> None:
@@ -233,6 +248,13 @@ class PickAndPlace(Node):
         if leg.grip is not None and not self.dry_run:
             self._send_gripper(leg.grip)
             self._spin(leg.settle)
+            if self.jaw:
+                opening = 2.0 * float(np.mean(list(self.jaw.values())))
+                report.jaw_opening = opening
+                if leg.grip == 'close':
+                    # Jaws shut to nothing means they closed on empty air. This
+                    # is the only direct evidence that a grasp took hold.
+                    report.grasp_ok = opening > 0.35 * self._grasp_width
         return report, q_start
 
     def run(self) -> int:
@@ -287,6 +309,11 @@ def render(reports: List[LegReport], cfg, model) -> str:
             flags.append('torque > 80 %')
         if 0.0 < r.min_sigma < 0.02:
             flags.append('near singular')
+        if r.grasp_ok is False:
+            flags.append(f'GRASP FAILED (jaws shut to '
+                         f'{(r.jaw_opening or 0) * 1000:.0f} mm)')
+        elif r.grasp_ok:
+            flags.append(f'gripping {(r.jaw_opening or 0) * 1000:.0f} mm')
         lines.append(f'{r.name:<20}{r.duration:>8.2f}{r.peak_tcp_speed:>11.3f}'
                      f'{r.peak_torque_use * 100:>12.0f}%{r.worst_joint:>14}'
                      f'{r.min_sigma:>11.4f}   {", ".join(flags)}')
@@ -294,6 +321,14 @@ def render(reports: List[LegReport], cfg, model) -> str:
     lines.append(f'  cycle time {total:.2f} s over {len(reports)} legs')
     worst = max((r.peak_torque_use for r in reports if r.planned), default=0.0)
     lines.append(f'  worst torque utilisation {worst * 100:.0f} % of peak')
+    grasps = [r for r in reports if r.grasp_ok is not None]
+    if grasps:
+        if all(r.grasp_ok for r in grasps):
+            lines.append('  grasp took hold: the jaws stopped on the object, '
+                         'not on each other')
+        else:
+            lines.append('  GRASP FAILED: the jaws closed to nothing, so there '
+                         'was no object between them')
     if any(r.collision for r in reports):
         lines.append('  SELF-COLLISION on at least one leg: the cycle is not safe')
     elif any(r.arm_near_ground for r in reports):
