@@ -7,6 +7,15 @@
 #
 #  Units: SI everywhere.  length m | mass kg | torque N.m | speed m/s, rad/s
 #  Copy this file, edit it, and run with  config_file:=/path/to/your_variant.yaml
+#  Optional link.inertial replaces COMPLETE assembly mass properties (motor
+#  and fittings included), while tube geometry still sets collision/stiffness:
+#    inertial:
+#      mass: 2.3
+#      com: [0.11, -0.02, 0.03]  # link axes, metres
+#      inertia: [0.02, 0.03, 0.04, 0.001, -0.002, 0.003]
+#      # ixx, iyy, izz, ixy, ixz, iyz about CoM, link axes, kg.m^2
+#  Optional actuator.viscous_damping defaults to 0 N.m.s/rad. It is separate
+#  from Coulomb friction; both are specified at the joint output.
 # =============================================================================
 
 robot:

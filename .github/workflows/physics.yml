@@ -1,0 +1,21 @@
+name: Headless physics
+on: [push, pull_request]
+jobs:
+  physics:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: python -m pip install -r requirements-dev.txt
+      - run: python -m pip install -e src/arm_lab_model
+      - run: python -m pytest -q
+      - run: robot_test check --samples 150 --output physics-check.json
+      - run: robot_test simulate --duration 0.5 --output physics-hold.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: physics-results
+          path: physics-*.json

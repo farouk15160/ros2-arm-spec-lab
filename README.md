@@ -1,13 +1,45 @@
-# Rover arm test bench (ROS 2 Jazzy + Gazebo Harmonic)
+# Robot Design Lab — arm design, physics checks and simulation
 
-A workspace for answering one question: **is this arm specification physically
-realistic?**
+A parameter-driven robot arm design bench with ROS 2 Jazzy, Gazebo Harmonic and
+an optional, headless MuJoCo workflow. Enter geometry, measured mass properties
+and actuator data, then check loads and simulate motion before building.
 
 You describe the arm in a single YAML file — link lengths, tube diameters and
 wall thicknesses, materials, actuators and gear ratios, end-effector mass — and
 the workspace generates the URDF, the Gazebo model, the ros2_control setup, a
 live dashboard and a written spec report from it. Change a number, relaunch,
 see what it costs you.
+
+**Current scope:** fixed-base serial rotary arms for design/analysis, plus
+generic MJCF smoke testing for other robot types. Quadruped and humanoid
+walking controllers and a general robot design editor are not implemented.
+See the [testing guide](docs/ROBOT_TESTING.md),
+[review and roadmap](docs/REVIEW_AND_ROADMAP.md), and
+[contributor guide](CONTRIBUTING.md).
+
+## Quick start without ROS or a display
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements-dev.txt
+python -m pip install -e src/arm_lab_model
+python -m pytest -q
+robot_test check --samples 150 --output check.json
+robot_test simulate --pose home --duration 2 --output hold.json
+robot_test export --output arm.xml
+robot_test smoke examples/quadruped_drop.xml --duration 2 --output drop.json
+```
+
+Copy `src/arm_lab_model/config/arm_config.yaml` and pass `--config my_arm.yaml`
+to test your design. `robot_test simulate --target <pose-name>` runs a quintic
+motion to another configured pose. Exit status is 0 for pass, 1 for failed test
+criteria, and 2 for invalid inputs. JSON reports state what was tested, including
+engine version, timestep where applicable, model hash and limitations.
+
+MuJoCo complements the ROS/Gazebo workflow below. Its arm benchmark uses a rigid
+tool and disables contacts; the generic smoke test enables the supplied model's
+physics but does not judge walking, balance or task success.
 
 ```
 src/
@@ -96,11 +128,26 @@ about `axis`. The tube runs `length` metres along `direction`, and its far end
 is where the next joint starts. So lengthening a link moves everything after it
 automatically; reach, mass, inertia and gravity torque all follow.
 
-**What is derived, not typed.** Link mass comes from
+**Default derived properties.** Link mass comes from
 `density × π(r_o² − r_i²) × length`. The inertia tensor is the hollow-cylinder
 tensor plus a parallel-axis term for the lumped actuator mass. The joint effort
-limit is `motor peak torque × gear ratio × efficiency`. You never enter a mass
-or an inertia by hand, so the model stays consistent with the geometry.
+limit is `motor peak torque × gear ratio × efficiency`.
+
+**Measured/CAD properties.** Add `link.inertial` to override the complete link
+assembly's mass properties, or use **Mass / CoM / inertia…** in the editor:
+
+```yaml
+inertial:
+  mass: 2.3                        # kg; assigned motor + fittings INCLUDED
+  com: [0.11, -0.02, 0.03]          # metres, in the link frame
+  inertia: [0.02, 0.03, 0.04, 0.001, -0.002, 0.003]
+  # ixx, iyy, izz, ixy, ixz, iyz about CoM, in link axes, kg.m^2
+```
+
+The loader checks physical validity and both exporters use the same properties.
+The tube remains the collision/stiffness approximation. Actuator `friction`
+is output-side Coulomb torque; optional `viscous_damping` is a separate
+N·m·s/rad value (default 0). See the [input conventions](docs/ROBOT_TESTING.md).
 
 Other sections: `materials` (density, Young's modulus, yield strength),
 `actuators` (torque, ratio, efficiency, rotor inertia, joint stiffness,
@@ -195,7 +242,10 @@ answered by cross-checking against sources that share none of this code:
 ros2 run arm_lab_model verify_physics
 ```
 
-| check | against | result |
+The following table records earlier project results; it is not evidence of a
+new Gazebo run. Re-run the commands for the current config and environment.
+
+| check | against | historical result |
 |---|---|---|
 | forward kinematics | Orocos KDL, fed the generated URDF | 3.4e-16 m |
 | gravity torque | Orocos KDL's RNE solver | 1.7e-8 N·m |
@@ -206,14 +256,21 @@ ros2 run arm_lab_model verify_physics
 | Jacobian | finite differences | 2.3e-9 m/rad |
 | **Gazebo joint efforts** | **the model, at the poses Gazebo reached** | **0.0 %** |
 
-A fourth engine, **MuJoCo**, is wired up in `tools/mujoco_crosscheck.py` (it
-needs its own virtualenv). It agrees on gravity torque to 1e-5 N·m and on the
-Coriolis terms to 4e-6 N·m, and its imported masses, centres of mass and inertia
-tensors match the URDF to ~1e-6 — but it differs on the mass-matrix term by
-~2.5e-3 relative, and **that is not resolved**. Since KDL, Gazebo and the energy
-balance all agree with the model, the likeliest cause is the URDF-to-MJCF frame
-conversion rather than either dynamics implementation; generating MJCF directly
-would settle it. It is recorded as an open question, not as a passing check.
+**MuJoCo now has a direct MJCF exporter and a reproducible check:**
+
+```bash
+robot_test check --samples 150 --output check.json
+# Compatibility command, also returns nonzero on failure:
+python tools/mujoco_crosscheck.py
+```
+
+The previous URDF-import script failed full dynamics and did not propagate its
+failure through its exit code. The new native path includes rotor inertia and
+compares FK, gravity and full inverse dynamics using per-joint tolerances.
+On the reviewed default model, MuJoCo 3.13.0 agreed to about `2.5e-14 N·m`
+across 150 seeded states. Tests also exercise measured asymmetric inertials,
+nonzero offsets, rotated mounting and payloads. These are rigid-body checks,
+not validation of contact, real actuator behaviour or hardware calibration.
 
 KDL is an independent implementation by a different team, and it is fed the
 *exported URDF* rather than the internal model, so agreement checks the dynamics

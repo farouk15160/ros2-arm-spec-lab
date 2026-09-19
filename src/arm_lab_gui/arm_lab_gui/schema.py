@@ -69,7 +69,7 @@ def joint_groups(index: int) -> List[Group]:
         Group('Joint', [
             Field(f'joints.{i}.name', 'Name', 'str'),
             Field(f'joints.{i}.type', 'Type', 'choice',
-                  options=('revolute', 'prismatic')),
+                  options=('revolute', 'continuous')),
             Field(f'joints.{i}.origin_xyz', 'Origin offset', 'vec3', 'm',
                   tip='Measured from the previous link\'s far end. Usually zero: '
                       'link lengths already place the joints.'),
@@ -295,6 +295,7 @@ ACTUATOR_FIELDS = [
     ('mass', 'Mass', 'kg', 3),
     ('joint_stiffness', 'Output stiffness', 'N.m/rad', 1),
     ('friction', 'Friction', 'N.m', 3),
+    ('viscous_damping', 'Viscous damping', 'N.m.s/rad', 4),
     ('quiescent_power', 'Quiescent power', 'W', 2),
     ('bus_voltage', 'Bus voltage', 'V', 1),
 ]

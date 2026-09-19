@@ -185,11 +185,10 @@ class MassCorrection:
                 + lumped_mass + self.harness_per_joint)
 
     def corrected_arm_mass(self, cfg) -> float:
-        total = self.corrected_link_mass(cfg.pedestal.tube_mass,
-                                         cfg.pedestal.lumped_mass)
-        for joint in cfg.joints:
-            total += self.corrected_link_mass(joint.link.tube_mass,
-                                              joint.link.lumped_mass)
+        total = 0.0
+        for link in [cfg.pedestal] + [joint.link for joint in cfg.joints]:
+            total += (link.mass if link.inertial is not None else
+                      self.corrected_link_mass(link.tube_mass, link.lumped_mass))
         return total + cfg.end_effector.mass
 
     @staticmethod

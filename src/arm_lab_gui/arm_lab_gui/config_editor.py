@@ -34,11 +34,12 @@ from python_qt_binding.QtWidgets import (QAbstractItemView, QApplication,
                                          QTabWidget, QTableWidget,
                                          QTableWidgetItem, QVBoxLayout, QWidget)
 
-from arm_lab_model.config import default_config_path, load_config
+from arm_lab_model.config import default_config_path, load_config, MeasuredInertial
 from arm_lab_model.kinematics import ArmModel
 from arm_lab_model.spec_report import SpecReport
 
 from . import schema
+from .config_paths import get_path, set_path
 from .widgets import ACCENT, BAD, BG, DIM, GOOD, GRID, PANEL, TEXT, WARN
 
 STYLE = f"""
@@ -63,29 +64,6 @@ QTabBar::tab {{ background: rgb(44,49,58); padding: 7px 14px; margin-right: 2px;
 QTabBar::tab:selected {{ background: rgb(62,70,84); }}
 QHeaderView::section {{ background: rgb(52,58,68); padding: 4px; border: 0; }}
 """
-
-
-# --------------------------------------------------------------- dict paths
-def get_path(data: Any, path: str, default=None) -> Any:
-    node = data
-    for key in path.split('.'):
-        try:
-            node = node[int(key)] if isinstance(node, list) else node[key]
-        except (KeyError, IndexError, ValueError, TypeError):
-            return default
-    return node
-
-
-def set_path(data: Any, path: str, value: Any) -> None:
-    keys = path.split('.')
-    node = data
-    for key in keys[:-1]:
-        node = node[int(key)] if isinstance(node, list) else node.setdefault(key, {})
-    last = keys[-1]
-    if isinstance(node, list):
-        node[int(last)] = value
-    else:
-        node[last] = value
 
 
 class Vec3Widget(QWidget):
@@ -251,6 +229,9 @@ class ConfigEditor(QMainWindow):
         hint.setStyleSheet(f'color: rgb({DIM.red()},{DIM.green()},{DIM.blue()});'
                            ' font-size: 10px;')
         left.addWidget(hint)
+        inertial = QPushButton('Mass / CoM / inertia…')
+        inertial.clicked.connect(self._edit_inertial)
+        left.addWidget(inertial)
         layout.addLayout(left)
 
         self.joint_detail = QScrollArea()
@@ -265,6 +246,70 @@ class ConfigEditor(QMainWindow):
                 del self.widgets[path]
         groups = schema.joint_groups(self.joint_index)
         self.joint_detail.setWidget(self._groups_page(groups))
+
+    def _edit_inertial(self) -> None:
+        """Edit a complete measured assembly without adding its motor twice."""
+        if not self.data.get('joints'):
+            return
+        link = self.data['joints'][self.joint_index]['link']
+        try:
+            derived = load_config(self._write_temp()).joints[self.joint_index].link
+        except (ValueError, KeyError, TypeError) as exc:
+            QMessageBox.warning(self, 'Fix configuration first', str(exc))
+            return
+        I = derived.inertia_in_link_frame()
+        initial = link.get('inertial', {
+            'mass': derived.mass, 'com': derived.com_xyz.tolist(),
+            'inertia': [float(I[0,0]), float(I[1,1]), float(I[2,2]),
+                        float(I[0,1]), float(I[0,2]), float(I[1,2])],
+        })
+        dialog = QDialog(self)
+        dialog.setWindowTitle('Link assembly mass properties')
+        layout = QVBoxLayout(dialog)
+        note = QLabel('Complete moving assembly, including its motor and fittings. '
+                      'CoM is in link axes (m); tensor is about CoM in the same axes (kg·m²). '
+                      'Collision shape and stiffness still use the tube geometry.')
+        note.setWordWrap(True)
+        layout.addWidget(note)
+        form = QFormLayout()
+        values = [initial['mass'], *initial['com'], *initial['inertia']]
+        labels = ['Mass (kg)', 'CoM X (m)', 'CoM Y (m)', 'CoM Z (m)',
+                  'Ixx', 'Iyy', 'Izz', 'Ixy', 'Ixz', 'Iyz']
+        boxes = []
+        for label, value in zip(labels, values):
+            box = QDoubleSpinBox()
+            box.setDecimals(10)
+            box.setRange(-1e6, 1e6)
+            box.setValue(float(value))
+            boxes.append(box)
+            form.addRow(label, box)
+        layout.addLayout(form)
+        buttons = QHBoxLayout()
+
+        def save():
+            values = [box.value() for box in boxes]
+            candidate = {'mass': values[0], 'com': values[1:4], 'inertia': values[4:]}
+            try:
+                MeasuredInertial.from_dict(candidate, derived.name)
+            except ValueError as exc:
+                QMessageBox.warning(dialog, 'Invalid mass properties', str(exc))
+                return
+            link['inertial'] = candidate
+            dialog.accept()
+            self._recompute()
+
+        def use_geometry():
+            link.pop('inertial', None)
+            dialog.accept()
+            self._recompute()
+
+        for label, action in [('Use measured values', save), ('Use tube estimate', use_geometry),
+                              ('Cancel', dialog.reject)]:
+            button = QPushButton(label)
+            button.clicked.connect(action)
+            buttons.addWidget(button)
+        layout.addLayout(buttons)
+        dialog.exec_()
 
     def _table_page(self, section: str, columns, noun: str) -> QWidget:
         page = QWidget()
@@ -610,8 +655,11 @@ class ConfigEditor(QMainWindow):
         lines.append(f'{"link":<12}{"tube":>9}{"motor+fittings":>17}{"total":>9}')
         for joint in cfg.joints:
             link = joint.link
-            lines.append(f'{link.name:<12}{link.tube_mass:>9.3f}'
-                         f'{link.lumped_mass:>17.3f}{link.mass:>9.3f}')
+            if link.inertial is not None:
+                lines.append(f'{link.name:<12}{"measured assembly":>26}{link.mass:>9.3f}')
+            else:
+                lines.append(f'{link.name:<12}{link.tube_mass:>9.3f}'
+                             f'{link.lumped_mass:>17.3f}{link.mass:>9.3f}')
 
         self.derived.setPlainText('\n'.join(lines))
         worst = float(np.max(np.abs(tau) / model.torque_limits)) * 100

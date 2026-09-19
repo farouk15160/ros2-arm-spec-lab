@@ -10,10 +10,12 @@ from __future__ import annotations
 
 import math
 import os
+import sys
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Sequence
 
 import yaml
+import numpy as np
 
 DEFAULT_CONFIG_ENV = 'ARM_LAB_CONFIG'
 
@@ -22,12 +24,22 @@ def _vec(value: Sequence[float], n: int = 3) -> List[float]:
     out = [float(v) for v in value]
     if len(out) != n:
         raise ValueError(f'expected {n} components, got {out}')
+    if not all(math.isfinite(v) for v in out):
+        raise ValueError('vector components must be finite')
     return out
+
+
+def _number(value, path: str, minimum: float = 0.0, positive: bool = False) -> float:
+    value = float(value)
+    if not math.isfinite(value) or value < minimum or (positive and value == minimum):
+        relation = '>' if positive else '>='
+        raise ValueError(f'{path} must be finite and {relation} {minimum}')
+    return value
 
 
 def _unit(value: Sequence[float]) -> List[float]:
     v = _vec(value)
-    norm = math.sqrt(sum(c * c for c in v))
+    norm = math.hypot(*v)
     if norm < 1e-12:
         raise ValueError('direction/axis vector must be non-zero')
     return [c / norm for c in v]
@@ -86,6 +98,7 @@ class Actuator:
     bracket_stiffness: float = 0.0    # N.m/rad, structure in series
     bearing_stiffness: float = 0.0
     gearbox_stiffness: float = 0.0    # filled in from the catalogue
+    viscous_damping: float = 0.0      # N.m.s/rad, output side
 
     @property
     def output_peak_torque(self) -> float:
@@ -136,7 +149,41 @@ class Actuator:
             gearbox_size=int(d.get('gearbox_size', 0)),
             bracket_stiffness=float(d.get('bracket_stiffness', 0.0)),
             bearing_stiffness=float(d.get('bearing_stiffness', 0.0)),
+            viscous_damping=float(d.get('viscous_damping', 0.0)),
         )
+
+
+@dataclass
+class MeasuredInertial:
+    """Complete assembly: CoM in link frame, tensor about CoM in link axes.
+
+    Includes actuator and fittings already assigned to this moving body.
+    Tensor order: ixx, iyy, izz, ixy, ixz, iyz (URDF tensor entries).
+    """
+
+    mass: float
+    com: List[float]
+    inertia: List[float]
+
+    @property
+    def matrix(self) -> np.ndarray:
+        xx, yy, zz, xy, xz, yz = self.inertia
+        return np.array([[xx, xy, xz], [xy, yy, yz], [xz, yz, zz]])
+
+    @staticmethod
+    def from_dict(d: Dict[str, Any], name: str) -> 'MeasuredInertial':
+        path = f'{name}.inertial'
+        if not isinstance(d, dict) or set(d) != {'mass', 'com', 'inertia'}:
+            raise ValueError(f'{path} requires exactly mass, com and inertia')
+        try:
+            result = MeasuredInertial(_number(d['mass'], path + '.mass', positive=True),
+                                      _vec(d['com']), _vec(d['inertia'], 6))
+            moments = np.linalg.eigvalsh(result.matrix)
+            if moments[0] <= 0 or moments[2] > moments[0] + moments[1] + 1e-12 * moments[2]:
+                raise ValueError('tensor must be positive definite and obey principal-moment triangle inequalities')
+        except (ValueError, TypeError) as exc:
+            raise ValueError(f'{path}: {exc}') from exc
+        return result
 
 
 @dataclass
@@ -151,6 +198,20 @@ class TubeLink:
     direction: List[float]
     extra_mass: float           # brackets/fittings, at the proximal end
     actuator_mass: float        # motor sitting at the proximal end
+    inertial: MeasuredInertial | None = None
+
+    @property
+    def com_xyz(self) -> np.ndarray:
+        if self.inertial is not None:
+            return np.array(self.inertial.com)
+        return np.array(self.direction) * self.com_distance
+
+    def inertia_in_link_frame(self) -> np.ndarray:
+        if self.inertial is not None:
+            return self.inertial.matrix
+        transverse, _, axial = self.inertia_about_com()
+        direction = np.array(self.direction)
+        return transverse * np.eye(3) + (axial - transverse) * np.outer(direction, direction)
 
     @property
     def wall_thickness(self) -> float:
@@ -171,6 +232,8 @@ class TubeLink:
 
     @property
     def mass(self) -> float:
+        if self.inertial is not None:
+            return self.inertial.mass
         return self.tube_mass + self.lumped_mass
 
     @property
@@ -381,7 +444,10 @@ def default_config_path() -> str:
             get_package_share_directory('arm_lab_model'), 'config', 'arm_config.yaml')
     except Exception:
         here = os.path.dirname(os.path.abspath(__file__))
-        return os.path.abspath(os.path.join(here, '..', 'config', 'arm_config.yaml'))
+        source = os.path.abspath(os.path.join(here, '..', 'config', 'arm_config.yaml'))
+        if os.path.isfile(source):
+            return source
+        return os.path.join(sys.prefix, 'share', 'arm_lab_model', 'config', 'arm_config.yaml')
 
 
 def load_config(path: str | None = None,
@@ -396,10 +462,34 @@ def load_config(path: str | None = None,
     with open(path, 'r') as fh:
         raw = yaml.safe_load(fh)
 
+    if not isinstance(raw, dict):
+        raise ValueError('configuration must be a YAML mapping')
+    for section in ('robot', 'materials', 'actuators', 'end_effector'):
+        if not isinstance(raw.get(section), dict):
+            raise ValueError(f'{section} must be a mapping')
+    if not isinstance(raw.get('joints'), list) or not raw['joints']:
+        raise ValueError('joints must be a non-empty list')
+
     materials = {k: Material.from_dict(k, v) for k, v in raw['materials'].items()}
     actuators = {k: Actuator.from_dict(k, v) for k, v in raw['actuators'].items()}
     for act in actuators.values():
+        for key in ('peak_torque', 'continuous_torque', 'gear_ratio', 'max_motor_speed',
+                    'joint_stiffness', 'bus_voltage', 'thermal_resistance', 'thermal_capacity'):
+            _number(getattr(act, key), f'actuators.{act.name}.{key}', positive=True)
+        for key in ('mass', 'rotor_inertia', 'friction', 'viscous_damping', 'quiescent_power',
+                    'torque_constant', 'phase_resistance', 'phase_inductance', 'max_phase_current',
+                    'bracket_stiffness', 'bearing_stiffness'):
+            _number(getattr(act, key), f'actuators.{act.name}.{key}')
+        if not 0 < act.efficiency <= 1:
+            raise ValueError(f'actuators.{act.name}.efficiency must be in (0, 1]')
+        if act.continuous_torque > act.peak_torque:
+            raise ValueError(f'actuators.{act.name}.continuous_torque exceeds peak_torque')
+        if not all(math.isfinite(v) for v in (act.ambient_temp, act.max_winding_temp)) or act.max_winding_temp <= act.ambient_temp:
+            raise ValueError(f'actuators.{act.name}: max_winding_temp must exceed ambient_temp')
         _derive_joint_stiffness(act)
+    for mat in materials.values():
+        for key in ('density', 'youngs_modulus', 'yield_strength'):
+            _number(getattr(mat, key), f'materials.{mat.name}.{key}', positive=True)
 
     def _material(key: str) -> Material:
         if key not in materials:
@@ -407,20 +497,21 @@ def load_config(path: str | None = None,
         return materials[key]
 
     def _tube(d: Dict[str, Any], name: str, actuator_mass: float) -> TubeLink:
-        outer_r = float(d['outer_diameter']) / 2.0
-        wall = float(d['wall_thickness'])
+        outer_r = _number(d['outer_diameter'], name + '.outer_diameter', positive=True) / 2.0
+        wall = _number(d['wall_thickness'], name + '.wall_thickness', positive=True)
         if wall <= 0.0 or wall >= outer_r:
             raise ValueError(
                 f"{name}: wall_thickness {wall} must be >0 and < outer radius {outer_r}")
         return TubeLink(
             name=d.get('name', name),
-            length=float(d['length']),
+            length=_number(d['length'], name + '.length', positive=True),
             outer_radius=outer_r,
             inner_radius=outer_r - wall,
             material=_material(d['material']),
             direction=_unit(d.get('direction', [0.0, 0.0, 1.0])),
-            extra_mass=float(d.get('extra_mass', 0.0)),
+            extra_mass=_number(d.get('extra_mass', 0.0), name + '.extra_mass'),
             actuator_mass=actuator_mass,
+            inertial=MeasuredInertial.from_dict(d['inertial'], name) if 'inertial' in d else None,
         )
 
     robot = raw['robot']
@@ -428,6 +519,8 @@ def load_config(path: str | None = None,
 
     joints: List[JointSpec] = []
     for entry in raw['joints']:
+        if entry.get('type', 'revolute') not in ('revolute', 'continuous'):
+            raise ValueError(f"{entry['name']}: joint type must be revolute or continuous; linear transmissions and branched robots require a separate model")
         act_key = entry['actuator']
         if act_key not in actuators:
             raise KeyError(f"unknown actuator '{act_key}'; have {sorted(actuators)}")
@@ -446,6 +539,15 @@ def load_config(path: str | None = None,
             link=_tube(entry['link'], entry['link'].get('name', entry['name'] + '_link'),
                        act.mass),
         ))
+
+    names = [j.name for j in joints]
+    links = ['world', 'base_link'] + [j.link.name for j in joints]
+    if len(set(names)) != len(names) or len(set(links)) != len(links):
+        raise ValueError('joint and link names must be unique within their namespace')
+    for joint in joints:
+        if not math.isfinite(joint.lower) or not math.isfinite(joint.upper) or joint.lower >= joint.upper:
+            raise ValueError(f'{joint.name}: lower must be finite and less than upper')
+        _number(joint.velocity_limit, joint.name + '.velocity', positive=True)
 
     ee_raw = raw['end_effector']
     ee = EndEffector(
@@ -490,4 +592,17 @@ def load_config(path: str | None = None,
         test_poses=raw.get('test_poses', {}),
         payload_mass=float(payload_mass or 0.0),
     )
+    _number(cfg.gravity, 'environment.gravity')
+    _number(cfg.payload_mass, 'payload_mass')
+    _number(ee.mass, 'end_effector.mass')
+    for key in ('body_length', 'body_width', 'body_height', 'finger_length', 'finger_width', 'finger_thickness'):
+        _number(getattr(ee, key), f'end_effector.{key}', positive=True)
+    for key in ('tcp_offset', 'com_offset'):
+        if not math.isfinite(getattr(ee, key)):
+            raise ValueError(f'end_effector.{key} must be finite')
+    _number(ee.finger_mass, 'end_effector.finger_mass')
+    if ee.simulate_fingers and ee.mass <= 2 * ee.finger_mass:
+        raise ValueError('end_effector.mass must exceed the mass of both fingers')
+    if cfg.reach_reference_joint not in cfg.joint_names:
+        raise ValueError('environment.reach_reference_joint must name an existing joint')
     return cfg

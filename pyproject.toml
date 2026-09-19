@@ -1,0 +1,4 @@
+[tool.pytest.ini_options]
+testpaths = ["src/arm_lab_model/test", "src/arm_lab_kinematics/test", "src/arm_lab_gui/test"]
+python_files = ["test_*.py"]
+pythonpath = ["src/arm_lab_model", "src/arm_lab_kinematics", "src/arm_lab_gui"]

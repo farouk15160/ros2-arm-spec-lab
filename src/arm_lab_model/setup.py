@@ -14,6 +14,7 @@ setup(
         ('share/' + package_name + '/config', glob('config/*.yaml')),
     ],
     install_requires=['setuptools', 'numpy', 'pyyaml'],
+    extras_require={'simulation': ['mujoco>=3.2,<4']},
     zip_safe=True,
     maintainer='farouk',
     maintainer_email='farouk15160@gmail.com',
@@ -28,6 +29,7 @@ setup(
             'sweep = arm_lab_model.sweep:main',
             'verify_physics = arm_lab_model.verification:main',
             'engineering_report = arm_lab_model.engineering_report:main',
+            'robot_test = arm_lab_model.mujoco_backend:main',
         ],
     },
 )

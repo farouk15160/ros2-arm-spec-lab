@@ -57,14 +57,13 @@ class UrdfBuilder:
             self._w('  </material>')
 
     def _inertial(self, link: TubeLink, indent: str = '    ') -> None:
-        R, rpy = _tube_local_frame(link.direction)
-        com = np.asarray(link.direction, dtype=float) * link.com_distance
-        ixx, iyy, izz = link.inertia_about_com()
+        com = link.com_xyz
+        I = link.inertia_in_link_frame()
         self._w(f'{indent}<inertial>')
-        self._w(f'{indent}  <origin xyz="{_fmt(com)}" rpy="{_fmt(rpy)}"/>')
+        self._w(f'{indent}  <origin xyz="{_fmt(com)}" rpy="0 0 0"/>')
         self._w(f'{indent}  <mass value="{link.mass:.9g}"/>')
-        self._w(f'{indent}  <inertia ixx="{ixx:.9g}" ixy="0" ixz="0" '
-                f'iyy="{iyy:.9g}" iyz="0" izz="{izz:.9g}"/>')
+        self._w(f'{indent}  <inertia ixx="{I[0,0]:.12g}" ixy="{I[0,1]:.12g}" ixz="{I[0,2]:.12g}" '
+                f'iyy="{I[1,1]:.12g}" iyz="{I[1,2]:.12g}" izz="{I[2,2]:.12g}"/>')
         self._w(f'{indent}</inertial>')
 
     def _box_inertial(self, mass: float, dims: Sequence[float],
@@ -155,7 +154,7 @@ class UrdfBuilder:
             link = joint.link
             offset = (np.asarray(parent_link.direction, dtype=float) * parent_link.length
                       + np.asarray(joint.origin_xyz, dtype=float))
-            damping = joint.actuator.friction * 0.1
+            damping = joint.actuator.viscous_damping
             self._w(f'  <joint name="{escape(joint.name)}" type="{joint.jtype}">')
             self._w(f'    <parent link="{parent}"/>')
             self._w(f'    <child link="{escape(link.name)}"/>')

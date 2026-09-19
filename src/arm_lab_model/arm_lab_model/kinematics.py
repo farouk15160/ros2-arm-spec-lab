@@ -129,6 +129,7 @@ class ArmModel:
         self.reflected_inertia = np.array(
             [j.actuator.reflected_inertia for j in cfg.joints])
         self.friction = np.array([j.actuator.friction for j in cfg.joints])
+        self.viscous_damping = np.array([j.actuator.viscous_damping for j in cfg.joints])
         # Constant per-joint geometry, hoisted out of the frames() recursion:
         # these depend only on the config, never on q.
         self._origin_R = [rpy_to_matrix(j.origin_rpy) for j in cfg.joints]
@@ -167,8 +168,8 @@ class ArmModel:
         dirs, frames_R, distals = [], [], []
 
         for i, joint in enumerate(self.joints):
-            R = R @ self._origin_R[i]
             p = p + R @ self._origin_p[i]
+            R = R @ self._origin_R[i]
             axis_w = R @ self._axis[i]
 
             if self._revolute[i]:
@@ -183,12 +184,12 @@ class ArmModel:
             link = joint.link
             d_w = R @ self._link_dir[i]
             dirs.append(d_w.copy())
-            coms.append(p + d_w * link.com_distance)
+            coms.append(p + R @ link.com_xyz)
             masses.append(link.mass)
             if not light:
                 R_tube = _frame_from_direction(d_w)
                 frames_R.append(R_tube)
-                inertias.append(_tube_body_inertia(link, R_tube))
+                inertias.append(R @ link.inertia_in_link_frame() @ R.T)
             p = p + d_w * link.length
             distals.append(p.copy())
 
@@ -360,6 +361,7 @@ class ArmModel:
             tau[i] += self.reflected_inertia[i] * qdd[i]
             if include_friction:
                 tau[i] += self.friction[i] * math.tanh(qd[i] / 0.02)
+                tau[i] += self.viscous_damping[i] * qd[i]
             p_next = p_i
 
         return tau
@@ -545,19 +547,29 @@ class ArmModel:
     # --------------------------------------------------------------- power
     def power(self, q, qd, payload: float = 0.0,
               fs: Optional[FrameSet] = None) -> dict:
-        """Electrical power estimate: mechanical work / efficiency + overhead."""
+        """Non-regenerative draw estimate, including copper loss when specified.
+
+        Uses ambient winding temperature. Braking power is not credited to the
+        supply; warm-winding duty cycles require the separate thermal model.
+        """
         fs = fs or self.frames(q)
         qd = np.asarray(qd, dtype=float)
         tau = self.inverse_dynamics(q, qd=qd, payload=payload, fs=fs)
         mech = np.abs(tau * qd)
         elec = np.zeros(self.n)
+        methods = []
         for i, joint in enumerate(self.joints):
             act = joint.actuator
-            # Copper loss scales with torque^2; approximate it from the peak
-            # operating point where the actuator is at its continuous rating.
-            load = abs(tau[i]) / max(act.output_continuous_torque, 1e-6)
-            elec[i] = mech[i] / max(act.efficiency, 1e-3) \
-                + act.quiescent_power * (1.0 + 0.5 * load ** 2)
+            if act.torque_constant > 0 and act.phase_resistance > 0:
+                from .reference import resistance_at
+                current = abs(tau[i]) / (act.torque_constant * act.gear_ratio * act.efficiency)
+                loss = current**2 * resistance_at(act.phase_resistance, act.ambient_temp)
+                elec[i] = mech[i] / act.efficiency + loss + act.quiescent_power
+                methods.append('mechanical + copper loss at ambient + electronics; no regen credit')
+            else:
+                load = abs(tau[i]) / max(act.output_continuous_torque, 1e-6)
+                elec[i] = mech[i] / act.efficiency + act.quiescent_power * (1.0 + 0.5 * load**2)
+                methods.append('heuristic: missing torque_constant or phase_resistance')
         buses = {}
         for i, joint in enumerate(self.joints):
             buses.setdefault(joint.actuator.bus_voltage, 0.0)
@@ -565,6 +577,7 @@ class ArmModel:
         return {
             'joint_mech_w': mech,
             'joint_elec_w': elec,
+            'estimation_methods': methods,
             'total_w': float(elec.sum()),
             'per_bus_w': buses,
             'per_bus_a': {v: p / v for v, p in buses.items()},
@@ -617,7 +630,7 @@ class ArmModel:
             q = np.clip(q + step, self.lower, self.upper)
         return q
 
-    def resolve_pose(self, spec, _seen=None) -> np.ndarray:
+    def resolve_pose(self, spec, _seen=None, *, strict=False) -> np.ndarray:
         """Turn a pose entry from the config into joint angles.
 
         Accepts a list of angles, the name of an entry in `test_poses`,
@@ -625,6 +638,12 @@ class ArmModel:
         """
         if isinstance(spec, (list, tuple, np.ndarray)):
             vals = [float(v) for v in spec]
+            if strict:
+                q = np.asarray(vals)
+                if (q.shape != (self.n,) or not np.all(np.isfinite(q))
+                        or np.any(q < self.lower) or np.any(q > self.upper)):
+                    raise ValueError('test poses must have one finite angle per joint, inside joint limits')
+                return q
             vals += [0.0] * (self.n - len(vals))
             return np.clip(np.array(vals[:self.n]), self.lower, self.upper)
         if isinstance(spec, str):
@@ -635,7 +654,7 @@ class ArmModel:
             seen = _seen or set()
             if spec in self.cfg.test_poses and spec not in seen:
                 seen.add(spec)
-                return self.resolve_pose(self.cfg.test_poses[spec], seen)
+                return self.resolve_pose(self.cfg.test_poses[spec], seen, strict=strict)
         raise ValueError(
             f'cannot interpret pose {spec!r}; known poses: '
             f'{sorted(self.cfg.test_poses)}')

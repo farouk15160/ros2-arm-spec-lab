@@ -11,7 +11,7 @@ import pytest
 import yaml
 
 from arm_lab_gui import schema
-from arm_lab_gui.config_editor import get_path, set_path
+from arm_lab_gui.config_paths import get_path, set_path
 from arm_lab_model.config import default_config_path, load_config
 
 

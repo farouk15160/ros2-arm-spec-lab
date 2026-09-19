@@ -1,0 +1,52 @@
+<mujoco model="quadruped_drop_fixture">
+  <!-- Synthetic contact fixture, not a validated robot or walking controller. -->
+  <compiler angle="radian"/>
+  <option timestep="0.001" integrator="implicitfast"/>
+  <default>
+    <joint type="hinge" axis="0 1 0" damping="0.2" armature="0.01" limited="true" range="-1.5 1.5"/>
+    <geom friction="0.8 0.005 0.0001" rgba="0.3 0.5 0.7 1"/>
+  </default>
+  <worldbody>
+    <geom name="floor" type="plane" size="3 3 .1" rgba="0.7 0.7 0.7 1"/>
+    <body name="trunk" pos="0 0 .65">
+      <freejoint name="floating_base"/>
+      <geom type="box" size=".22 .10 .06" mass="4"/>
+      <body name="front_left_upper" pos=".17 .13 0">
+        <joint name="front_left_hip"/>
+        <geom type="capsule" fromto="0 0 0 0 0 -.18" size=".025" mass=".3"/>
+        <body name="front_left_lower" pos="0 0 -.18">
+          <joint name="front_left_knee"/>
+          <geom type="capsule" fromto="0 0 0 0 0 -.18" size=".02" mass=".2"/>
+          <geom name="front_left_foot" type="sphere" pos="0 0 -.18" size=".035" mass=".05"/>
+        </body>
+      </body>
+      <body name="front_right_upper" pos=".17 -.13 0">
+        <joint name="front_right_hip"/>
+        <geom type="capsule" fromto="0 0 0 0 0 -.18" size=".025" mass=".3"/>
+        <body name="front_right_lower" pos="0 0 -.18">
+          <joint name="front_right_knee"/>
+          <geom type="capsule" fromto="0 0 0 0 0 -.18" size=".02" mass=".2"/>
+          <geom name="front_right_foot" type="sphere" pos="0 0 -.18" size=".035" mass=".05"/>
+        </body>
+      </body>
+      <body name="rear_left_upper" pos="-.17 .13 0">
+        <joint name="rear_left_hip"/>
+        <geom type="capsule" fromto="0 0 0 0 0 -.18" size=".025" mass=".3"/>
+        <body name="rear_left_lower" pos="0 0 -.18">
+          <joint name="rear_left_knee"/>
+          <geom type="capsule" fromto="0 0 0 0 0 -.18" size=".02" mass=".2"/>
+          <geom name="rear_left_foot" type="sphere" pos="0 0 -.18" size=".035" mass=".05"/>
+        </body>
+      </body>
+      <body name="rear_right_upper" pos="-.17 -.13 0">
+        <joint name="rear_right_hip"/>
+        <geom type="capsule" fromto="0 0 0 0 0 -.18" size=".025" mass=".3"/>
+        <body name="rear_right_lower" pos="0 0 -.18">
+          <joint name="rear_right_knee"/>
+          <geom type="capsule" fromto="0 0 0 0 0 -.18" size=".02" mass=".2"/>
+          <geom name="rear_right_foot" type="sphere" pos="0 0 -.18" size=".035" mass=".05"/>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+</mujoco>
