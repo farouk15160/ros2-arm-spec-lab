@@ -1,0 +1,72 @@
+classDiagram
+    class ArmConfig {
+      raw: dict
+      joints: ordered list
+      gravity: float
+      test_poses: dict
+      dof()
+      arm_mass()
+    }
+    class JointSpec {
+      name: str
+      jtype: str
+      origin_xyz: vector3
+      origin_rpy: vector3
+      axis: vector3
+      effort_limit()
+      usable_speed()
+    }
+    class TubeLink {
+      length: float
+      direction: vector3
+      mass()
+      com_xyz()
+      inertia_in_link_frame()
+    }
+    class MeasuredInertial {
+      mass: float
+      com: vector3
+      inertia: six_components
+      matrix()
+    }
+    class Actuator {
+      peak_torque: float
+      continuous_torque: float
+      gear_ratio: float
+      efficiency: float
+      reflected_inertia()
+    }
+    class Material {
+      density: float
+      youngs_modulus: float
+      yield_strength: float
+    }
+    class EndEffector {
+      mass: float
+      tcp_offset: float
+      com_offset: float
+      simulate_fingers: bool
+    }
+    class ArmModel {
+      frames(q)
+      inverse_dynamics(q, qd, qdd)
+      payload_capacity(q)
+    }
+    class FrameSet {
+      joint_origin: array
+      link_com: array
+      link_inertia: list
+      tcp: vector3
+    }
+    ArmConfig "1" *-- "1..*" JointSpec : ordered chain
+    ArmConfig "1" *-- "1" TubeLink : pedestal
+    ArmConfig "1" *-- "1" EndEffector : tool
+    ArmConfig "1" o-- "1..*" Actuator : library
+    ArmConfig "1" o-- "1..*" Material : library
+    JointSpec "1" *-- "1" TubeLink : moving body
+    JointSpec --> Actuator : shared reference
+    TubeLink --> Material : shared reference
+    EndEffector --> Material
+    TubeLink "1" *-- "0..1" MeasuredInertial : complete override
+    ArmModel --> ArmConfig : reads
+    ArmModel ..> FrameSet : computes

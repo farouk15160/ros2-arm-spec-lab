@@ -158,12 +158,12 @@ actuators:
 # Frame convention, per entry:
 #   1. start at the previous link's DISTAL frame (base mount for the first)
 #   2. translate by  origin_xyz, rotate by  origin_rpy   -> joint frame
-#   3. the joint rotates about  axis  (revolute) or slides along it (prismatic)
+#   3. the joint rotates about axis (revolute or continuous)
 #   4. the link is a hollow tube from the joint frame, running  length  metres
 #      along  direction  -> that end becomes the next entry's DISTAL frame
 #
-# So editing a `length` moves everything downstream automatically. Reach,
-# inertias, gravity torques and the URDF all follow.
+# Editing length moves everything downstream. Derived tube inertials follow;
+# explicit measured inertials must be updated separately from CAD/measurement.
 # -----------------------------------------------------------------------------
 joints:
   - name: joint_1             # shoulder yaw (turret)

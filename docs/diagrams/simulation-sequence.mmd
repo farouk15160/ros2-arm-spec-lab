@@ -1,0 +1,23 @@
+sequenceDiagram
+    actor User
+    participant CLI as robot_test
+    participant Loader as Config loader
+    participant Export as MJCF exporter
+    participant Engine as MuJoCo
+    participant Analysis as ArmModel
+    User->>CLI: simulate config, pose, target, payload, duration
+    CLI->>Loader: load_config
+    Loader-->>CLI: validated ArmConfig
+    CLI->>Export: build_mjcf
+    Export-->>CLI: explicit body inertials and output motors
+    CLI->>Engine: compile model and disable contacts
+    CLI->>Analysis: resolve poses with strict limits
+    loop Each timestep
+        CLI->>Analysis: inverse dynamics feedforward
+        Analysis-->>CLI: required torque
+        CLI->>CLI: add PD feedback and apply torque-speed limits
+        CLI->>Engine: set controls and step
+        Engine-->>CLI: state and numerical warnings
+        CLI->>CLI: track error, speed, torque, saturation
+    end
+    CLI-->>User: JSON report and pass/fail exit status

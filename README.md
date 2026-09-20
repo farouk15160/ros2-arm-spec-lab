@@ -13,9 +13,15 @@ see what it costs you.
 **Current scope:** fixed-base serial rotary arms for design/analysis, plus
 generic MJCF smoke testing for other robot types. Quadruped and humanoid
 walking controllers and a general robot design editor are not implemented.
-See the [testing guide](docs/ROBOT_TESTING.md),
+Start with the [complete documentation](docs/README.md):
+[getting started](docs/GETTING_STARTED.md),
+[system architecture](docs/ARCHITECTURE.md),
+[domain models](docs/DOMAIN_MODELS.md),
+[configuration](docs/CONFIGURATION.md), and
+[ROS interfaces](docs/ROS_INTERFACES.md).
+The [testing guide](docs/ROBOT_TESTING.md),
 [review and roadmap](docs/REVIEW_AND_ROADMAP.md), and
-[contributor guide](CONTRIBUTING.md).
+[contributor guide](CONTRIBUTING.md) cover validation and further development.
 
 ## Quick start without ROS or a display
 

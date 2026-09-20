@@ -9,6 +9,7 @@ python -m pip install -r requirements-dev.txt
 python -m pip install -e src/arm_lab_model
 python -m pytest -q
 robot_test check --samples 150
+python tools/build_docs.py --check
 ```
 
 Physics changes should include an independent check: an analytic special case,
@@ -26,3 +27,10 @@ For bug reports include the smallest reproducing YAML/MJCF, command, Python and
 engine versions, expected behaviour and actual output. For new robot types,
 discuss the [body-tree roadmap](docs/ROBOT_TESTING.md) before extending the
 serial-arm assumptions throughout the codebase.
+
+Architecture, domain models, ROS interfaces and implementation guidance are in
+the [documentation index](docs/README.md) and [developer guide](docs/DEVELOPMENT.md).
+When changing command entry points, launch arguments, core APIs or the example
+YAML, run `python tools/build_docs.py` and commit the regenerated references.
+Edit diagram sources in `docs/diagrams/`; the same command updates their embeds.
+Narrative guides must be reviewed alongside the source change.

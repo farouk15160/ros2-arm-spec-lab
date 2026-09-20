@@ -1,0 +1,26 @@
+flowchart TB
+    Launch[sim.launch.py] --> Generate[common.generate]
+    Generate --> Files[arm.urdf and controllers.yaml]
+    Files --> RSP[robot_state_publisher]
+    RSP --> Description[robot_description]
+    Description --> Spawn[ros_gz_sim create]
+    Spawn --> Gazebo[Gazebo robot and world]
+    Gazebo --> Plugin[gz_ros2_control plugin]
+    Files --> Plugin
+    Plugin --> Manager[controller_manager]
+    Manager --> Arm[arm_controller]
+    Manager --> Grip[gripper_controller if fingers]
+    Manager --> JSB[joint_state_broadcaster]
+    JSB --> States["/joint_states"]
+    States --> RSP
+    RSP --> TF[TF transforms]
+    TF --> RViz[RViz]
+    States --> Dashboard[Dashboard / LiveState]
+    States --> Capability[Capability node / LiveState]
+    Dashboard -->|JointTrajectory| Arm
+    Dashboard -->|Float64MultiArray| Grip
+    States --> Cartesian[Optional cartesian_move node]
+    Cartesian -->|JointTrajectory| Arm
+    Capability --> Metrics[arm_lab metrics and diagnostics]
+    Gazebo --> ClockBridge[ros_gz_bridge: clock only]
+    ClockBridge --> Clock["/clock"]

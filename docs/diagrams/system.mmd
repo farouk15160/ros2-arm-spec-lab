@@ -1,0 +1,19 @@
+flowchart TB
+    User[Robot designer] --> Editor[Qt configuration editor]
+    User --> YAML[Design YAML]
+    Editor --> YAML
+    YAML --> Loader[load_config: validate and derive]
+    Loader --> Config[ArmConfig aggregate]
+    Config --> Model[ArmModel: kinematics and dynamics]
+    Model --> Reports[Spec / engineering / sweeps]
+    Model --> Planning[IK / workspace / paths / error studies]
+    Config --> URDF[URDF and controller YAML]
+    URDF --> ROS[ROS 2 and Gazebo]
+    ROS --> Live[Dashboard and capability estimates]
+    Model --> Live
+    Config --> MJCF[Native MJCF exporter]
+    MJCF --> MJ[MuJoCo checks and motion tests]
+    Model --> MJ
+    External[External MJCF tree] --> Smoke[Generic numerical smoke test]
+    MJ --> JSON[JSON results and exit status]
+    Smoke --> JSON

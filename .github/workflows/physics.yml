@@ -11,6 +11,7 @@ jobs:
           cache: pip
       - run: python -m pip install -r requirements-dev.txt
       - run: python -m pip install -e src/arm_lab_model
+      - run: python tools/build_docs.py --check
       - run: python -m pytest -q
       - run: robot_test check --samples 150 --output physics-check.json
       - run: robot_test simulate --duration 0.5 --output physics-hold.json
