@@ -399,12 +399,41 @@ def from_config_actuator(actuator, control: Optional[Dict]=None) -> Optional[Act
 
 [Source](../src/arm_lab_model/arm_lab_model/mujoco_backend.py)
 
+### SceneBox
+
+A free box from the world file: a pick target for the simulator.
+
+| Field | Type | Declared default |
+|---|---|---|
+| `name` | `str` | `required` |
+| `pos` | `tuple` | `required` |
+| `rpy` | `tuple` | `required` |
+| `size` | `tuple` | `required` |
+| `mass` | `float` | `required` |
+| `friction` | `float` | `required` |
+| `rgba` | `tuple` | `(0.9, 0.45, 0.1, 1.0)` |
+
+### Scene
+
+| Field | Type | Declared default |
+|---|---|---|
+| `ground_friction` | `float` | `1.0` |
+| `boxes` | `tuple` | `()` |
+
+### load_world
+
+Read the ground and the free boxes out of a Gazebo world SDF.
+
+```python
+def load_world(path): ...
+```
+
 ### build_mjcf
 
 Direct MJCF export with output-side motors and reflected rotor inertia.
 
 ```python
-def build_mjcf(cfg, payload=0.0, timestep=0.001): ...
+def build_mjcf(cfg, payload=0.0, timestep=0.001, *, fingers=False, scene=None): ...
 ```
 
 ### crosscheck

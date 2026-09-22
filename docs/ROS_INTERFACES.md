@@ -4,8 +4,12 @@
 
 ## Runtime graph
 
-This is the generated ROS/Gazebo system. Optional tools are shown explicitly;
-MuJoCo runs separately and has no ROS bridge supplied by this project.
+This is the generated ROS/Gazebo system. Optional tools are shown explicitly.
+With `simulator:=mujoco`, the `mujoco_sim` node replaces Gazebo, the clock
+bridge, the spawner and the controllers. It publishes `/joint_states` and
+`/clock`, subscribes to the same trajectory and gripper topics, and serves the
+`follow_joint_trajectory` action. The headless `robot_test` benchmarks remain
+separate from it.
 
 <!-- AUTO-GENERATED: diagram:ros-runtime -->
 
@@ -86,6 +90,7 @@ need additional namespacing/remapping work.
 | `/arm_lab/cartesian_target` | `geometry_msgs/msg/PoseStamped` | User → optional Cartesian node; model world coordinates in metres |
 | `/arm_lab/cartesian_plan` | `std_msgs/msg/String` | Cartesian node → planner summary or failure text |
 | `/arm_lab/workspace` | `visualization_msgs/msg/MarkerArray` | Workspace marker node → RViz |
+| `/arm_lab/objects` | `visualization_msgs/msg/MarkerArray` | `mujoco_sim` → RViz; the world's sample boxes where MuJoCo has them |
 | `/arm_lab/tcp_speed` | `std_msgs/msg/Float64` | Capability publisher; m/s |
 | `/arm_lab/payload_capacity` | `std_msgs/msg/Float64` | Capability publisher; kg, static model estimate |
 | `/arm_lab/torque_utilisation` | `std_msgs/msg/Float64` | Capability publisher; maximum joint ratio, 1 means 100% |
@@ -111,6 +116,7 @@ custom action interface that confirms completion.
 | `speed_test` | `config_file`, `payload_mass`, `target_speed`, `cycles`, `pose_a`, `pose_b`, `arm_controller` |
 | `pick_place` | `config_file`, object/place coordinates, mass/size, approach height, speed, controllers, `dry_run`, grip/open force |
 | `workspace_markers` | `map_file`, `frame_id`, `revolutions`, `publish_period` |
+| `mujoco_sim` | `config_file`, `ee_mass`, `gravity`, `payload_mass`, `initial_pose`, `world`, `gui`, `real_time_factor`, `publish_rate`, `bandwidth_hz`, `arm_controller`, `gripper_controller` |
 
 Use `--ros-args -p name:=value` for node parameters. Core launch nodes are passed
 `use_sim_time`; pass it explicitly to manually launched motion nodes when

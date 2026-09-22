@@ -40,6 +40,17 @@ Visualization Manager:
       Show Names: false
       Marker Scale: 0.15
       Frame Timeout: 15
+    - Class: rviz_default_plugins/MarkerArray
+      Name: Objects (MuJoCo)
+      Enabled: true
+      Namespaces:
+        objects: true
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /arm_lab/objects
   Enabled: true
   Global Options:
     Background Color: 60; 65; 72

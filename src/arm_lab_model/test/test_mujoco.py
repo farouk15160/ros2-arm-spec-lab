@@ -136,3 +136,114 @@ def test_invalid_pose_cannot_run():
     cfg.test_poses['outside'] = [100] * cfg.dof
     with pytest.raises(ValueError, match='inside joint limits'):
         simulate_arm(cfg, pose='outside')
+
+
+# ------------------------------------------------ interactive simulator core
+ROOT = Path(__file__).resolve().parents[3]
+WORLD = ROOT / 'src' / 'arm_lab_bringup' / 'worlds' / 'arm_test_world.sdf'
+CONFIG_DIR = ROOT / 'src' / 'arm_lab_model' / 'config'
+
+
+def test_benchmark_model_has_no_jaws_or_contact_filters_by_default():
+    from arm_lab_model.mujoco_backend import build_mjcf
+    xml = build_mjcf(load_config())
+    assert 'slide' not in xml and 'contype' not in xml
+
+
+def test_world_loader_reads_the_gazebo_boxes_and_ground():
+    from arm_lab_model.mujoco_backend import load_world
+    scene = load_world(WORLD)
+    boxes = {b.name: b for b in scene.boxes}
+    assert set(boxes) == {'sample_2kg', 'sample_3kg'}
+    assert boxes['sample_2kg'].mass == 2.0
+    assert boxes['sample_2kg'].size == (0.08, 0.08, 0.08)
+    assert boxes['sample_3kg'].pos == (0.55, -0.35, 0.045)
+    assert boxes['sample_3kg'].friction == 1.4
+    assert scene.ground_friction == 1.0
+
+
+def test_jaws_keep_the_tool_mass_and_centre_of_mass():
+    from arm_lab_model.mujoco_backend import build_mjcf, load_world
+    cfg = load_config()
+    mj = mujoco.MjModel.from_xml_string(
+        build_mjcf(cfg, fingers=True, scene=load_world(WORLD)))
+    data = mujoco.MjData(mj)
+    for name in cfg.end_effector.finger_joint_names:     # both jaws equally open
+        data.qpos[mj.joint(name).qposadr[0]] = 0.03
+    mujoco.mj_forward(mj, data)
+    tool = mj.body('gripper_rigid_tool')
+    assert mj.body_subtreemass[tool.id] == pytest.approx(cfg.end_effector.mass)
+    flange = data.site('tcp').xpos - data.xpos[tool.id]
+    flange /= np.linalg.norm(flange)
+    com = data.subtree_com[tool.id] - data.xpos[tool.id]
+    np.testing.assert_allclose(com, flange * cfg.end_effector.com_offset, atol=1e-9)
+
+
+def test_arm_geoms_collide_with_the_scene_but_not_with_each_other():
+    from arm_lab_model.mujoco_backend import build_mjcf, load_world
+    mj = mujoco.MjModel.from_xml_string(
+        build_mjcf(load_config(), fingers=True, scene=load_world(WORLD)))
+    world_body = 0
+    boxes = {mj.body('sample_2kg').id, mj.body('sample_3kg').id}
+    arm = [g for g in range(mj.ngeom)
+           if mj.geom_bodyid[g] != world_body and mj.geom_bodyid[g] not in boxes]
+    scene = [g for g in range(mj.ngeom) if g not in arm]
+
+    def collide(a, b):
+        return bool(mj.geom_contype[a] & mj.geom_conaffinity[b]
+                    or mj.geom_contype[b] & mj.geom_conaffinity[a])
+    assert not any(collide(a, b) for a in arm for b in arm if a < b)
+    assert all(collide(a, s) for a in arm for s in scene)
+
+
+def test_trajectory_sampler_follows_hermite_segments_and_holds_the_end():
+    from arm_lab_model.mujoco_sim import TrajectoryPoint, TrajectorySampler
+    q0, q1 = np.zeros(2), np.array([1.0, -2.0])
+    cubic = TrajectorySampler(10.0, q0, np.zeros(2),
+                              [TrajectoryPoint(2.0, q1, np.zeros(2))])
+    q, v, a = cubic.sample(11.0)                          # halfway, peak speed
+    np.testing.assert_allclose(q, q1 / 2)
+    np.testing.assert_allclose(v, 1.5 * q1 / 2.0)
+    np.testing.assert_allclose(a, 0.0, atol=1e-12)
+    np.testing.assert_allclose(cubic.sample(10.0)[0], q0)
+    q, v, a = cubic.sample(30.0)
+    np.testing.assert_allclose(q, q1)
+    assert not v.any() and not a.any() and cubic.done(12.0)
+    linear = TrajectorySampler(0.0, q0, np.zeros(2), [TrajectoryPoint(2.0, q1)])
+    np.testing.assert_allclose(linear.sample(0.5)[1], q1 / 2.0)
+
+
+def test_simulation_rejects_unknown_joints_and_holds_on_an_empty_trajectory():
+    from arm_lab_model.mujoco_sim import ArmSimulation, TrajectoryPoint
+    sim = ArmSimulation(load_config())
+    with pytest.raises(ValueError, match='unknown joints'):
+        sim.set_trajectory(['elbow'], [TrajectoryPoint(1.0, np.zeros(1))])
+    held = sim.desired()[0]
+    sim.hold()
+    for _ in range(300):
+        sim.step()
+    assert np.max(np.abs(sim.tracking_error())) < 1e-4
+    np.testing.assert_allclose(sim.desired()[0], held)
+
+
+def test_jaws_close_at_grip_speed_and_stop_at_their_limit():
+    from arm_lab_model.mujoco_sim import ArmSimulation
+    cfg = load_config()
+    sim = ArmSimulation(cfg)
+    ee = cfg.end_effector
+    sim.set_gripper([-ee.grip_force_max])
+    for _ in range(200):
+        sim.step()
+    speed = abs(sim.joint_state()[2][cfg.dof])
+    assert speed == pytest.approx(ee.grip_speed, rel=0.1)
+    for _ in range(4000):
+        sim.step()
+    jaws = sim.joint_state()[1][cfg.dof:]
+    assert min(jaws) > -0.002, jaws        # a soft limit, but a stiff one
+
+
+@pytest.mark.parametrize('path', sorted(CONFIG_DIR.glob('*.yaml')), ids=lambda p: p.name)
+def test_every_shipped_config_passes_the_dynamics_crosscheck(path):
+    from arm_lab_model.mujoco_backend import crosscheck
+    result = crosscheck(load_config(str(path)), samples=10, payload=2.0)
+    assert result['passed'], result

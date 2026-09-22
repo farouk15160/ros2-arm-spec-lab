@@ -86,6 +86,10 @@ ros2 launch arm_lab_bringup sim.launch.py gravity:=3.72 gz_gui:=false
 
 # Geometry check only, no physics: RViz + joint sliders
 ros2 launch arm_lab_bringup view.launch.py
+
+# MuJoCo instead of Gazebo, with its viewer window (no gz_ros2_control needed)
+ros2 launch arm_lab_bringup sim.launch.py simulator:=mujoco
+ros2 launch arm_lab_bringup sim.launch.py simulator:=mujoco mujoco_gui:=false
 ```
 
 ### Launch arguments
@@ -99,7 +103,28 @@ ros2 launch arm_lab_bringup view.launch.py
 | `command_interface` | `velocity` | `position`, `velocity` or `effort` |
 | `initial_pose` | `home` | any name from `test_poses` |
 | `world` | test bench | world SDF |
+| `simulator` | `gazebo` | `gazebo` or `mujoco` |
+| `mujoco_gui` | `true` | show the MuJoCo viewer when `simulator:=mujoco` |
 | `gz_gui` / `rviz` / `dashboard` / `capability` | `true` | which windows and nodes to start |
+
+### MuJoCo bench
+
+`simulator:=mujoco` swaps Gazebo and ros2_control for the `mujoco_sim` node. It
+serves what the rest of the bench already talks to: `/joint_states`, `/clock`,
+`/arm_controller/joint_trajectory`, the `/arm_controller/follow_joint_trajectory`
+action and `/gripper_controller/commands`. So the dashboard, `pick_place`,
+`cartesian_move` and `speed_test` run unchanged. The ground and sample boxes
+come from the same world SDF, and RViz shows the boxes on `/arm_lab/objects`.
+
+Differences from Gazebo worth knowing:
+
+- The joint servo is computed torque on MuJoCo's own mass matrix (5 Hz
+  bandwidth PID, clipped at each actuator's torque and torque-speed limit),
+  not the ros2_control PID. Tracking and torque traces differ between the benches.
+- Grasps are simulated by contact and friction. The jaws follow a drive's
+  force-speed line: the commanded squeeze at stall, `grip_speed` with no load.
+- On a Wayland desktop the viewer runs through XWayland. Export
+  `PYGLFW_LIBRARY_VARIANT=wayland` to try native Wayland instead.
 
 ---
 

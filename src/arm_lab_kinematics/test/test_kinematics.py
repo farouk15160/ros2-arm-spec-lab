@@ -339,3 +339,51 @@ def test_orientation_sampler_starts_tool_down():
     for R in rots:
         assert np.linalg.det(R) == pytest.approx(1.0, abs=1e-9)
         assert np.allclose(R @ R.T, np.eye(3), atol=1e-9)
+
+
+def test_mujoco_simulator_grasps_lifts_and_places_the_sample():
+    """A full pick on the interactive MuJoCo bench, grasping at the top face
+    exactly where pick_place puts the TCP, and measuring where the box lands."""
+    pytest.importorskip('mujoco')
+    from arm_lab_kinematics.workspace import TOOL_DOWN
+    from arm_lab_model.mujoco_sim import ArmSimulation, TrajectoryPoint
+    world = os.path.join(os.path.dirname(__file__), '..', '..', 'arm_lab_bringup',
+                         'worlds', 'arm_test_world.sdf')
+    cfg = load_config()
+    sim = ArmSimulation(cfg, world=world)
+    box = sim.m.body('sample_2kg').id
+    start = sim.d.xpos[box].copy()
+
+    def move(q, target, settle=0.4):
+        path = plan_line(sim.model, q, target, TOOL_DOWN)
+        assert path.feasible, path.notes
+        sim.set_trajectory(cfg.joint_names, [
+            TrajectoryPoint(float(t), np.array(j), np.array(v))
+            for t, j, v in zip(path.times, path.joints, path.joint_speeds)])
+        end = sim.time + path.duration + settle
+        while sim.time < end:
+            sim.step()
+        return np.array(path.joints[-1])
+
+    def wait(seconds):
+        end = sim.time + seconds
+        while sim.time < end:
+            sim.step()
+
+    grasp = start + [0.0, 0.0, 0.04]                     # the box's top face
+    place = np.array([0.45, -0.45, start[2] + 0.04])
+    sim.set_gripper([40.0])
+    q = move(sim.model.resolve_pose('home'), grasp + [0, 0, 0.16])
+    q = move(q, grasp)
+    sim.set_gripper([-60.0])
+    wait(1.2)
+    opening = 2.0 * np.mean(sim.joint_state()[1][cfg.dof:])
+    assert 0.07 < opening < 0.08, opening                # stopped on an 80 mm box
+    q = move(q, grasp + [0, 0, 0.16])
+    assert sim.d.xpos[box][2] > start[2] + 0.12          # carried, not dragged
+    q = move(q, place + [0, 0, 0.16])
+    q = move(q, place)
+    sim.set_gripper([40.0])
+    wait(0.8)
+    move(q, place + [0, 0, 0.16])
+    assert np.linalg.norm(sim.d.xpos[box][:2] - place[:2]) < 0.01

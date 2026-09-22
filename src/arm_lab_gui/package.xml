@@ -20,6 +20,10 @@
   <depend>builtin_interfaces</depend>
   <depend>python_qt_binding</depend>
   <depend>python3-numpy</depend>
+  <!-- mujoco_sim only; MuJoCo itself comes from pip (see docs). -->
+  <exec_depend>control_msgs</exec_depend>
+  <exec_depend>rosgraph_msgs</exec_depend>
+  <exec_depend>visualization_msgs</exec_depend>
 
   <test_depend>python3-pytest</test_depend>
 

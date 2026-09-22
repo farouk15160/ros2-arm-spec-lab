@@ -1,13 +1,15 @@
 """Optional, ROS-free MuJoCo export, inverse-dynamics checks and simulation.
 
-The arm exporter uses a rigid tool (jaws included in its total mass). Contact
-and grasp validation are separate from the contact-free arm dynamics benchmark.
+By default the arm exporter uses a rigid tool (jaws included in its total
+mass), which is what the contact-free dynamics benchmark compares against.
+`build_mjcf(..., fingers=True, scene=load_world(sdf))` adds force-driven jaws,
+the ground and the world's sample boxes for the interactive ROS simulator.
 Arbitrary MJCF trees can be stepped by the generic smoke-test runner.
 """
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 import hashlib
 import json
 import math
@@ -42,15 +44,91 @@ def _inertial(body, mass, com, I):
                   fullinertia=_fmt([I[0, 0], I[1, 1], I[2, 2], I[0, 1], I[0, 2], I[1, 2]]))
 
 
-def build_mjcf(cfg, payload=0.0, timestep=0.001):
-    """Direct MJCF export with output-side motors and reflected rotor inertia."""
+@dataclass
+class SceneBox:
+    """A free box from the world file: a pick target for the simulator."""
+
+    name: str
+    pos: tuple
+    rpy: tuple
+    size: tuple
+    mass: float
+    friction: float
+    rgba: tuple = (0.9, 0.45, 0.1, 1.0)
+
+
+@dataclass
+class Scene:
+    ground_friction: float = 1.0
+    boxes: tuple = ()
+
+
+def _floats(text, count, default):
+    values = [float(v) for v in (text or '').split()]
+    return tuple(values) if len(values) == count else default
+
+
+def load_world(path):
+    """Read the ground and the free boxes out of a Gazebo world SDF.
+
+    Only what the arm can touch is taken: a plane becomes the ground, and each
+    non-static model whose collision is a box becomes a free body with its
+    mass and friction. Lights, plugins and other shapes are ignored, so the
+    Gazebo and MuJoCo benches share one world file.
+    """
+    world = ET.parse(str(path)).getroot().find('world')
+    if world is None:
+        raise ValueError(f'{path}: no <world> element')
+    scene = Scene()
+    boxes = []
+    for model in world.findall('model'):
+        link = model.find('link')
+        collision = link.find('collision') if link is not None else None
+        geometry = collision.find('geometry') if collision is not None else None
+        if geometry is None:
+            continue
+        mu = collision.findtext('surface/friction/ode/mu')
+        friction = float(mu) if mu else 1.0
+        if geometry.find('plane') is not None:
+            scene.ground_friction = friction
+            continue
+        size = geometry.findtext('box/size')
+        if size is None or (model.findtext('static') or '').strip() == 'true':
+            continue
+        pose = _floats(model.findtext('pose'), 6, (0.0,) * 6)
+        colour = _floats(link.findtext('visual/material/diffuse'), 4, SceneBox.rgba)
+        boxes.append(SceneBox(model.get('name'), pose[:3], pose[3:],
+                              _floats(size, 3, (0.05,) * 3),
+                              float(link.findtext('inertial/mass') or 1.0),
+                              friction, colour))
+    scene.boxes = tuple(boxes)
+    return scene
+
+
+def build_mjcf(cfg, payload=0.0, timestep=0.001, *, fingers=False, scene=None):
+    """Direct MJCF export with output-side motors and reflected rotor inertia.
+
+    `fingers` models the jaws as two slide joints driven like the Gazebo
+    gripper controller (a squeeze force in force mode, an opening in position
+    mode), with the tool mass split exactly as the URDF does. `scene` adds the
+    ground and free boxes; arm and jaw geoms then collide with the scene but
+    never with each other. Both default off, which keeps the benchmark model.
+    """
     _number(payload, 'payload')
     _number(timestep, 'timestep', positive=True)
     root = ET.Element('mujoco', model=cfg.name)
     ET.SubElement(root, 'compiler', angle='radian', inertiafromgeom='false')
-    ET.SubElement(root, 'option', timestep=str(timestep), gravity=f'0 0 {-cfg.gravity}',
-                  integrator='implicitfast')
+    option = ET.SubElement(root, 'option', timestep=str(timestep),
+                           gravity=f'0 0 {-cfg.gravity}', integrator='implicitfast')
+    if scene is not None:
+        # Elliptic cones and a high impedance ratio keep a friction grasp from
+        # creeping out of the jaws.
+        option.set('cone', 'elliptic')
+        option.set('impratio', '10')
     world = ET.SubElement(root, 'worldbody')
+    arm_contact = {'contype': '1', 'conaffinity': '0'} if scene is not None else {}
+    if scene is not None:
+        _scene(root, world, scene)
     parent = ET.SubElement(world, 'body', name='base_link', pos=_fmt(cfg.mount_xyz),
                            **_orientation(rpy_to_matrix(cfg.mount_rpy)))
 
@@ -59,7 +137,8 @@ def build_mjcf(cfg, payload=0.0, timestep=0.001):
         ET.SubElement(body, 'geom', type='cylinder',
                       size=_fmt([link.outer_radius, link.length / 2]),
                       pos=_fmt(np.array(link.direction) * link.length / 2),
-                      zaxis=_fmt(link.direction), rgba=_fmt(link.material.color))
+                      zaxis=_fmt(link.direction), rgba=_fmt(link.material.color),
+                      **arm_contact)
 
     tube(parent, cfg.pedestal)
     previous = cfg.pedestal
@@ -84,15 +163,25 @@ def build_mjcf(cfg, payload=0.0, timestep=0.001):
     tool = ET.SubElement(parent, 'body', name=ee.name + '_rigid_tool',
                          pos=_fmt(direction * previous.length))
     R = _frame_from_direction(direction)
+    jaws = fingers and ee.simulate_fingers
+    body_mass, com = ee.mass, ee.com_offset
+    if jaws:
+        # Same split as the URDF: the jaws sit out at the jaw position, so the
+        # body moves inboard to keep the whole tool's CoM where it is configured.
+        body_mass = max(ee.mass - 2.0 * ee.finger_mass, 1e-3)
+        com = (ee.mass * ee.com_offset - 2.0 * ee.finger_mass
+               * (ee.body_length + ee.finger_length / 2.0)) / body_mass
     x, y, z = ee.body_width, ee.body_height, ee.body_length
-    I = R @ np.diag([ee.mass * (y*y + z*z) / 12,
-                     ee.mass * (x*x + z*z) / 12,
-                     ee.mass * (x*x + y*y) / 12]) @ R.T
-    if ee.mass > 0:
-        _inertial(tool, ee.mass, direction * ee.com_offset, I)
+    I = R @ np.diag([body_mass * (y*y + z*z) / 12,
+                     body_mass * (x*x + z*z) / 12,
+                     body_mass * (x*x + y*y) / 12]) @ R.T
+    if body_mass > 0:
+        _inertial(tool, body_mass, direction * com, I)
     ET.SubElement(tool, 'geom', type='box', size=_fmt([x/2, y/2, z/2]),
-                  pos=_fmt(direction * z/2), **_orientation(R))
+                  pos=_fmt(direction * z/2), **_orientation(R), **arm_contact)
     ET.SubElement(tool, 'site', name='tcp', pos=_fmt(direction * ee.tcp_offset), size='0.006')
+    if jaws:
+        _jaws(tool, motors, ee, direction, R, arm_contact)
     if payload:
         # The analytical payload is a point mass. Tiny positive inertia is
         # required by the compiler; its approximation error is tested explicitly.
@@ -100,6 +189,67 @@ def build_mjcf(cfg, payload=0.0, timestep=0.001):
         _inertial(body, payload, [0, 0, 0], np.eye(3) * 1e-12)
     ET.indent(root)
     return ET.tostring(root, encoding='unicode') + '\n'
+
+
+def _jaws(tool, motors, ee, flange, R, contact):
+    """Two slide joints from shut (0) to open (stroke / 2), as in the URDF."""
+    open_axis = R[:, 0]
+    half = ee.stroke / 2.0
+    t, w, length = ee.finger_thickness, ee.finger_width, ee.finger_length
+    I = R @ np.diag([ee.finger_mass * (w*w + length*length) / 12,
+                     ee.finger_mass * (t*t + length*length) / 12,
+                     ee.finger_mass * (t*t + w*w) / 12]) @ R.T
+    for sign, side in ((1.0, 'left'), (-1.0, 'right')):
+        name = f'{ee.name}_{side}_joint'
+        axis = open_axis * sign
+        body = ET.SubElement(tool, 'body', name=f'{ee.name}_{side}_finger',
+                             pos=_fmt(flange * ee.body_length))
+        centre = axis * t / 2.0 + flange * length / 2.0
+        _inertial(body, ee.finger_mass, centre, I)
+        ET.SubElement(body, 'joint', name=name, type='slide', axis=_fmt(axis),
+                      limited='true', range=_fmt([0.0, half]),
+                      damping='5', frictionloss='1',
+                      # A 60 g jaw alone makes the soft limit spongy: under the
+                      # full squeeze it overran by 22 mm. The drive's reflected
+                      # inertia and a stiffer limit keep it within a millimetre.
+                      armature='0.05', solreflimit='0.004 1')
+        ET.SubElement(body, 'geom', type='box', size=_fmt([t/2, w/2, length/2]),
+                      pos=_fmt(centre), **_orientation(R), condim='4',
+                      friction='1.5 0.02 0.0001', rgba='0.25 0.25 0.28 1', **contact)
+        if ee.grasp_mode == 'force':
+            ET.SubElement(motors, 'motor', name=name + '_motor', joint=name, gear='1',
+                          ctrllimited='true',
+                          ctrlrange=_fmt([-ee.grip_force_max, ee.grip_force_max]))
+        else:
+            ET.SubElement(motors, 'position', name=name + '_motor', joint=name,
+                          kp='2000', ctrllimited='true', ctrlrange=_fmt([0.0, half]),
+                          forcelimited='true',
+                          forcerange=_fmt([-ee.grip_force_max, ee.grip_force_max]))
+
+
+def _scene(root, world, scene):
+    visual = ET.SubElement(root, 'visual')
+    ET.SubElement(visual, 'headlight', ambient='0.4 0.4 0.4', diffuse='0.6 0.6 0.6')
+    asset = ET.SubElement(root, 'asset')
+    ET.SubElement(asset, 'texture', name='ground', type='2d', builtin='checker',
+                  rgb1='0.52 0.47 0.40', rgb2='0.45 0.41 0.35', width='512', height='512')
+    ET.SubElement(asset, 'material', name='ground', texture='ground', texrepeat='20 20')
+    ET.SubElement(world, 'light', pos='0 0 4', dir='0 0 -1', diffuse='0.6 0.6 0.6')
+    ET.SubElement(world, 'geom', name='ground', type='plane', size='30 30 0.1',
+                  material='ground', friction=_fmt([scene.ground_friction, 0.005, 0.0001]),
+                  contype='0', conaffinity='1')
+    for box in scene.boxes:
+        body = ET.SubElement(world, 'body', name=box.name, pos=_fmt(box.pos),
+                             **_orientation(rpy_to_matrix(box.rpy)))
+        ET.SubElement(body, 'freejoint', name=box.name + '_free')
+        x, y, z = box.size
+        ET.SubElement(body, 'inertial', pos='0 0 0', mass=str(box.mass),
+                      diaginertia=_fmt([box.mass * (y*y + z*z) / 12,
+                                        box.mass * (x*x + z*z) / 12,
+                                        box.mass * (x*x + y*y) / 12]))
+        ET.SubElement(body, 'geom', type='box', size=_fmt([x/2, y/2, z/2]), condim='4',
+                      friction=_fmt([box.friction, 0.02, 0.0001]), rgba=_fmt(box.rgba),
+                      contype='1', conaffinity='1')
 
 
 def _indices(mj, cfg):

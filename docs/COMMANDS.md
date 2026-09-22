@@ -18,6 +18,7 @@ for ROS installs; use `COMMAND --help` for offline CLI options.
 | `arm_lab_gui` | `config_editor` | [arm_lab_gui.config_editor:main](../src/arm_lab_gui/arm_lab_gui/config_editor.py) |
 | `arm_lab_gui` | `capability_node` | [arm_lab_gui.capability_node:main](../src/arm_lab_gui/arm_lab_gui/capability_node.py) |
 | `arm_lab_gui` | `speed_test` | [arm_lab_gui.speed_test:main](../src/arm_lab_gui/arm_lab_gui/speed_test.py) |
+| `arm_lab_gui` | `mujoco_sim` | [arm_lab_gui.mujoco_sim_node:main](../src/arm_lab_gui/arm_lab_gui/mujoco_sim_node.py) |
 | `arm_lab_kinematics` | `ik_check` | [arm_lab_kinematics.cli:ik_check_main](../src/arm_lab_kinematics/arm_lab_kinematics/cli.py) |
 | `arm_lab_kinematics` | `workspace` | [arm_lab_kinematics.cli:workspace_main](../src/arm_lab_kinematics/arm_lab_kinematics/cli.py) |
 | `arm_lab_kinematics` | `singularity` | [arm_lab_kinematics.cli:singularity_main](../src/arm_lab_kinematics/arm_lab_kinematics/cli.py) |
@@ -144,7 +145,9 @@ by the launch setup function; it is not necessarily the effective runtime value.
 | `command_interface` | `''` | position &#124; velocity &#124; effort |
 | `initial_pose` | `'home'` | named pose from test_poses |
 | `world` | `''` | world SDF; blank uses the test bench |
+| `simulator` | `'gazebo'` | gazebo &#124; mujoco |
 | `gz_gui` | `'true'` | show the Gazebo window |
+| `mujoco_gui` | `'true'` | show the MuJoCo viewer (simulator:=mujoco) |
 | `rviz` | `'true'` | See launch source. |
 | `dashboard` | `'true'` | See launch source. |
 | `capability` | `'true'` | publish capability topics for plotting |
