@@ -9,6 +9,7 @@ Headless twin of the dashboard: same model, no window.
 
 from __future__ import annotations
 
+import signal
 import sys
 import time
 from typing import List, Optional
@@ -16,6 +17,7 @@ from typing import List, Optional
 import numpy as np
 import rclpy
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Float64, Float64MultiArray
@@ -112,9 +114,12 @@ def main(argv: Optional[List[str]] = None) -> int:
     node = CapabilityNode()
     try:
         rclpy.spin(node)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
+        # Ctrl-C in a terminal reaches every node twice: directly, and again
+        # forwarded by `ros2 launch`. The second must not interrupt cleanup.
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
         node.destroy_node()
         if rclpy.ok():
             rclpy.shutdown()

@@ -10,6 +10,7 @@ drive the trajectory controller so the numbers move under real motion.
 
 from __future__ import annotations
 
+import signal
 import sys
 import time
 from typing import List, Optional
@@ -432,9 +433,25 @@ class Dashboard(QMainWindow):
         dialog.setStyleSheet(STYLE)
         dialog.exec_() if hasattr(dialog, 'exec_') else dialog.exec()
 
+    def _close_after_shutdown(self) -> None:
+        self.timer.stop()
+        QApplication.quit()
+
     # ----------------------------------------------------------------- tick
     def _tick(self) -> None:
-        rclpy.spin_once(self.node, timeout_sec=0.0)
+        # A SIGTERM from `ros2 launch` shuts the ROS context down underneath
+        # the Qt loop. Spinning a dead context raises on every timer tick, so
+        # stop polling and close the window instead.
+        if not rclpy.ok():
+            self._close_after_shutdown()
+            return
+        try:
+            rclpy.spin_once(self.node, timeout_sec=0.0)
+        except Exception:
+            if rclpy.ok():
+                raise
+            self._close_after_shutdown()
+            return
 
         fresh = (self.node.last_msg_time is not None
                  and time.time() - self.node.last_msg_time < 1.0)
@@ -522,11 +539,17 @@ def main(argv: Optional[List[str]] = None) -> int:
     rclpy.init(args=argv if argv is not None else sys.argv)
     node = DashboardNode()
     app = QApplication(sys.argv[:1])
+    # Ctrl-C closes the window. Left to rclpy, it would also raise
+    # KeyboardInterrupt inside whichever Qt slot runs next.
+    signal.signal(signal.SIGINT, lambda *_: app.quit())
     window = Dashboard(node)
     window.show()
     try:
         code = app.exec_() if hasattr(app, 'exec_') else app.exec()
     finally:
+        # Ctrl-C in a terminal reaches every node twice: directly, and again
+        # forwarded by `ros2 launch`. The second must not interrupt cleanup.
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
         node.destroy_node()
         if rclpy.ok():
             rclpy.shutdown()
