@@ -231,6 +231,12 @@ reachable contact force, power per bus, tube stress, and a scorecard of live
 values against the spec. The buttons drive the trajectory controller so the
 numbers move under real motion; `Full spec report` opens the written report.
 
+The **JOG** panel has one slider per joint across its limits (arrow keys step 1°,
+Page Up/Down 10°). Dragging streams trajectory commands timed so the peak TCP
+speed stays at the `TCP speed` setting and each joint under half its limit.
+While you are not jogging, the sliders follow the measured joint angles, and
+`STOP` also ends a running speed sweep. It works on both Gazebo and MuJoCo.
+
 The **payload** spinner is analysis only — it changes what the model assumes is
 in the gripper. To make Gazebo physically carry a mass, relaunch with
 `payload_mass:=`.

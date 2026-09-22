@@ -10,6 +10,7 @@ drive the trajectory controller so the numbers move under real motion.
 
 from __future__ import annotations
 
+import math
 import signal
 import sys
 import time
@@ -37,6 +38,9 @@ from arm_lab_model.spec_report import SpecReport
 from .state import LiveState
 from .widgets import (ACCENT, BAD, BG, DIM, GOOD, GRID, PANEL, TEXT, WARN,
                       BigNumber, MeterBar, ScoreCard, TimePlot)
+
+JOG_SEND_PERIOD = 0.1      # s between streamed commands while a slider moves
+JOG_SPEED_FRACTION = 0.5   # of each joint's speed limit, at most, when jogging
 
 STYLE = f"""
 QMainWindow, QWidget {{ background: rgb({BG.red()},{BG.green()},{BG.blue()});
@@ -134,6 +138,10 @@ class Dashboard(QMainWindow):
         self._sweep = False
         self._sweep_flip = 0.0
         self._sweep_index = 0
+        self._jog_target: Optional[np.ndarray] = None
+        self._jog_busy_until = 0.0      # sliders follow the arm after this
+        self._jog_pending = False
+        self._jog_last_send = 0.0
 
         self.setWindowTitle(f'Arm capability dashboard - {self.cfg.name}')
         self.setStyleSheet(STYLE)
@@ -151,6 +159,7 @@ class Dashboard(QMainWindow):
         body.addWidget(self._build_joint_panel(), 5)
         body.addWidget(self._build_capability_panel(), 4)
         outer.addLayout(body, 1)
+        outer.addWidget(self._build_jog_panel())
         outer.addWidget(self._build_controls())
 
         self.timer = QTimer(self)
@@ -252,6 +261,43 @@ class Dashboard(QMainWindow):
         grid.setRowStretch(row + 1, 1)
         return box
 
+    def _build_jog_panel(self) -> QWidget:
+        box = QGroupBox('JOG   -   drag a slider to move that joint '
+                        '(arrow keys 1°, Page Up/Down 10°)')
+        grid = QGridLayout(box)
+        grid.setContentsMargins(10, 16, 10, 10)
+        grid.setHorizontalSpacing(10)
+        grid.setVerticalSpacing(4)
+        self.jog_sliders: List[QSlider] = []
+        self.jog_labels: List[QLabel] = []
+        rows = math.ceil(len(self.cfg.joints) / 2)
+        for i, joint in enumerate(self.cfg.joints):
+            row, col = i % rows, (i // rows) * 4       # column 3 is a gap
+            grid.addWidget(QLabel(joint.name), row, col)
+            slider = QSlider(Qt.Horizontal)
+            # Tenths of a degree, so the whole joint range is reachable.
+            slider.setRange(int(math.ceil(math.degrees(joint.lower) * 10)),
+                            int(math.floor(math.degrees(joint.upper) * 10)))
+            slider.setSingleStep(10)
+            slider.setPageStep(100)
+            slider.setToolTip(f'{math.degrees(joint.lower):.0f}° to '
+                              f'{math.degrees(joint.upper):.0f}°; follows the '
+                              'arm when you are not moving it')
+            slider.valueChanged.connect(lambda v, i=i: self._on_jog(i, v))
+            slider.sliderReleased.connect(self._send_jog)
+            grid.addWidget(slider, row, col + 1)
+            label = QLabel('0.0°')
+            label.setObjectName('mono')
+            label.setMinimumWidth(64)
+            label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            grid.addWidget(label, row, col + 2)
+            self.jog_sliders.append(slider)
+            self.jog_labels.append(label)
+        grid.setColumnMinimumWidth(3, 28)
+        grid.setColumnStretch(1, 1)
+        grid.setColumnStretch(5, 1)
+        return box
+
     def _build_capability_panel(self) -> QWidget:
         box = QGroupBox('CAPABILITY AT THE CURRENT POSE')
         layout = QVBoxLayout(box)
@@ -332,7 +378,7 @@ class Dashboard(QMainWindow):
 
         stop = QPushButton('STOP')
         stop.setObjectName('stop')
-        stop.clicked.connect(self.node.hold)
+        stop.clicked.connect(self._on_stop)
         top.addWidget(stop)
         top.addStretch(1)
         outer.addLayout(top)
@@ -407,6 +453,77 @@ class Dashboard(QMainWindow):
             self.plot.clear()
             self._sweep_flip = 0.0
 
+    def _on_stop(self) -> None:
+        if self._sweep:
+            self.sweep_button.setChecked(False)
+            self._on_sweep(False)
+        self._jog_pending = False
+        self._jog_busy_until = 0.0
+        self.node.hold()
+
+    # ----------------------------------------------------------------- jog
+    def _on_jog(self, index: int, tenths: int) -> None:
+        """A slider moved under the user's hand: aim that joint there.
+
+        Programmatic updates block signals, so every call here is user input.
+        """
+        if not self.state.ready:
+            # No /joint_states yet: the measured pose is all zeros, and a jog
+            # from it would swing every other joint to zero.
+            return
+        now = time.monotonic()
+        if self._jog_target is None or now > self._jog_busy_until:
+            # A fresh jog starts from where the arm is, not where it was told to be.
+            self._jog_target = self.state.q.copy()
+        if self._sweep:
+            self.sweep_button.setChecked(False)
+            self._on_sweep(False)
+        self._jog_target[index] = math.radians(tenths / 10.0)
+        self.jog_labels[index].setText(f'{tenths / 10.0:7.1f}°')
+        self._jog_pending = True
+        self._jog_busy_until = max(self._jog_busy_until, now + 0.5)
+
+    def _jog_duration(self, q: np.ndarray) -> float:
+        """Long enough that the PEAK speeds respect the TCP speed setting and
+        half of each joint's limit.
+
+        A rest-to-rest cubic peaks at 1.5x its average speed, and the controller
+        interpolates in joint space, so the TCP follows an arc: its length, not
+        the straight-line distance, sets the time.
+        """
+        start = self.state.q.copy()
+        points = np.array([self.model.fk(start + (q - start) * s)
+                           for s in np.linspace(0.0, 1.0, 12)])
+        arc = float(np.sum(np.linalg.norm(np.diff(points, axis=0), axis=1)))
+        tcp_time = 1.5 * arc / max(self.speed_spin.value(), 1e-3)
+        joint_time = float(np.max(1.5 * np.abs(q - start)
+                                  / (JOG_SPEED_FRACTION * self.model.velocity_limits)))
+        return max(tcp_time, joint_time, 0.3)
+
+    def _send_jog(self) -> None:
+        if self._jog_target is None:
+            return
+        q = np.clip(self._jog_target, self.model.lower, self.model.upper)
+        duration = self._jog_duration(q)
+        self.node.send_pose(q, duration)
+        now = time.monotonic()
+        self._jog_pending = False
+        self._jog_last_send = now
+        self._jog_busy_until = max(self._jog_busy_until, now + duration + 0.3)
+
+    def _follow_arm(self, q: np.ndarray) -> None:
+        """Show the measured joint angles while nobody is jogging."""
+        if time.monotonic() <= self._jog_busy_until:
+            return
+        for slider, label, angle in zip(self.jog_sliders, self.jog_labels, q):
+            if slider.isSliderDown():
+                return
+            tenths = int(round(math.degrees(angle) * 10))
+            slider.blockSignals(True)
+            slider.setValue(tenths)
+            slider.blockSignals(False)
+            label.setText(f'{math.degrees(angle):7.1f}°')
+
     def _sweep_poses(self) -> List[str]:
         names = [n for n in ('home', 'full_reach', 'reach_700', 'overhead')
                  if n in self.cfg.test_poses]
@@ -464,6 +581,9 @@ class Dashboard(QMainWindow):
             self.link_label.setStyleSheet(
                 f'color: rgb({WARN.red()},{WARN.green()},{WARN.blue()})')
 
+        if self._jog_pending and time.monotonic() - self._jog_last_send >= JOG_SEND_PERIOD:
+            self._send_jog()
+
         if self._sweep:
             now = time.monotonic()
             if now >= self._sweep_flip:
@@ -484,6 +604,7 @@ class Dashboard(QMainWindow):
         qd = mtr['qd']
         tau = mtr['tau_model']
         tau_sim = mtr['tau_sim']
+        self._follow_arm(q)
         for i in range(len(self.cfg.joints)):
             self.pos_labels[i].setText(f'{np.degrees(q[i]):7.1f}°')
             self.speed_bars[i].set_value(qd[i])
