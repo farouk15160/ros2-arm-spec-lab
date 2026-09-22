@@ -1,0 +1,361 @@
+# =============================================================================
+#  rover arm -- 1 m reach / 2 kg payload / 10 kg mass variant, built from
+#  catalogue parts
+# =============================================================================
+#  Requirements (from the spec table):
+#    6 revolute DOF, reach 1000-1050 mm from the shoulder axis (1 m from the
+#    base axis to the TCP when stretched), 2.0 kg continuous at full reach,
+#    3.0 kg at 700 mm, arm + gripper <= 10 kg (hard max 12 kg), gripper
+#    <= 1.2 kg, 48 V main / 24 V secondary, 200 Hz, classical CAN at 1 Mbit/s.
+#
+#  What is different from arm_config.yaml:
+#    * Actuators are Robstride quasi-direct-drive modules (single-stage
+#      planetary, integrated FOC drive, dual 14-bit magnetic encoders, 48 V,
+#      CAN 1 Mbit/s, IP52):
+#        RobStride 04 (RS04) on base yaw, shoulder and elbow
+#        RobStride 02 (RS02) on the three wrist joints
+#      Torque, speed, current, torque constant, resistance, mass and size are
+#      data sheet values, so the engineering report can run its thermal model.
+#      Planetary QDD joints backdrive easily: see `holding` below.
+#    * Link lengths are DIN 323 / ISO 3 preferred numbers (R10/R40 series).
+#    * Tubes are standard stock sections: roll-wrapped CFRP 80x76 and 50x47,
+#      EN 755-8 aluminium round tube 120x4, 100x3 and 70x3.
+#    * The tool flange is ISO 9409-1-50-4-M6.
+#
+#  Sources:
+#    RobStride 04 / 02 data sheets (via distributor listings):
+#      https://rcdrone.top/products/robstride-04-qdd-120n-m-integrated-actuator-module-48v-9-1-ratio-dual-magnetic-encoder-ip52-700w-output
+#      https://rcdrone.top/products/robstride-02-qdd-17n-m-integrated-actuator-module-7-75-1-ratio-dual-14-bit-magnetic-encoders-48v-405g-foc-drive-for-robotics
+#
+#  Units: SI everywhere.  length m | mass kg | torque N.m | speed m/s, rad/s
+# =============================================================================
+
+robot:
+  name: rover_arm_1m_2kg
+  mount_xyz: [0.0, 0.0, 0.0]
+  mount_rpy: [0.0, 0.0, 0.0]
+  # Adapter housing the joint_1 module (RS04, 120 x 120 x 56 mm) on the rover
+  # deck; 80 mm also keeps link_1 clear of the deck.
+  pedestal:
+    length: 0.080               # R10
+    outer_diameter: 0.120       # EN 755-8 round tube 120 x 4
+    wall_thickness: 0.004
+    material: aluminium_6061
+    extra_mass: 0.20            # deck plate, bolts, harness entry, connector
+
+environment:
+  gravity: 9.81
+  reach_reference_joint: joint_2
+
+materials:
+  aluminium_6061:
+    density: 2700.0
+    youngs_modulus: 68.9e9
+    yield_strength: 276.0e6
+    color: [0.78, 0.79, 0.82, 1.0]
+  cfrp_tube:                    # roll-wrapped 3K carbon tube
+    density: 1600.0
+    youngs_modulus: 70.0e9
+    yield_strength: 600.0e6
+    color: [0.12, 0.12, 0.14, 1.0]
+  pa12_sls:
+    density: 1010.0
+    youngs_modulus: 1.6e9
+    yield_strength: 48.0e6
+    color: [0.90, 0.88, 0.80, 1.0]
+
+# -----------------------------------------------------------------------------
+# Actuator library -- RobStride quasi-direct-drive modules.
+#
+# The model computes output torque as  motor torque x ratio x efficiency, and
+# current as torque / (Kt x ratio x efficiency). With efficiency 0.9 the
+# motor-side figures below reproduce the data sheet OUTPUT values exactly:
+#     RS04: 120 N.m peak, Kt 2.1 N.m/A at the output, 90 A peak = 63.6 A rms
+#     RS02:  17 N.m peak, Kt 1.22 N.m/A at the output, 23 A peak = 16.3 A rms
+# phase_resistance is the data sheet line resistance; insulation is class B.
+#
+# Continuous torque: RS04 is rated 40 N.m on a 345 x 345 mm aluminium plate
+# and 35 N.m on a 220 x 200 mm plate. A link-mounted joint gets nothing like
+# the big plate, so 35 N.m is used. thermal_resistance is back-calculated so
+# that the rated torque settles the winding exactly at the class B limit.
+#
+# Estimated, not published (measure these on a bench):
+#   rotor_inertia, friction, quiescent_power, thermal_capacity, and the gear
+#   stiffness inside joint_stiffness. Robstride publishes no torsional
+#   stiffness, so joint_stiffness is typed in as the series combination of an
+#   ESTIMATED gear stiffness with the bracket and bearing values listed (the
+#   same structural assumptions as arm_config.yaml). bracket_stiffness and
+#   bearing_stiffness are kept so tools/joint_sizing.py can split the droop.
+# -----------------------------------------------------------------------------
+actuators:
+  rs04:                         # RobStride 04: 40 (35) rated / 120 peak N.m, 9:1
+    peak_torque: 14.815         # -> 120.0 N.m at the output
+    continuous_torque: 4.321    # -> 35.0 N.m at the output
+    gear_ratio: 9.0
+    efficiency: 0.90
+    rotor_inertia: 1.5e-4       # estimate; reflected 0.012 kg.m^2
+    max_motor_speed: 188.5      # 200 rpm no-load at the output
+    mass: 1.42                  # data sheet, 120 x 120 x 56 mm
+    joint_stiffness: 8182.0     # series(gear 30000 estimate, bracket, bearing)
+    friction: 0.50              # estimate, output side
+    quiescent_power: 3.0        # estimate
+    bus_voltage: 48.0
+    torque_constant: 0.2593     # N.m/A motor side (2.1 at the output)
+    phase_resistance: 0.16      # ohm, line to line
+    phase_inductance: 2.11e-4
+    max_phase_current: 63.6     # A rms (90 A peak)
+    thermal_resistance: 1.65    # K/W, from the 35 N.m rating
+    thermal_capacity: 230.0     # J/K, estimate -> time constant ~380 s
+    max_winding_temp: 130.0
+    ambient_temp: 25.0
+    insulation_class: B
+    encoder_bits: 14            # dual 14-bit magnetic encoders
+    output_encoder_bits: 14
+    bracket_stiffness: 18000.0  # assumption, already inside joint_stiffness
+    bearing_stiffness: 30000.0  # assumption, already inside joint_stiffness
+  rs02:                         # RobStride 02: 6 rated / 17 peak N.m, 7.75:1
+    peak_torque: 2.4373         # -> 17.0 N.m
+    continuous_torque: 0.8602   # -> 6.0 N.m
+    gear_ratio: 7.75
+    efficiency: 0.90
+    rotor_inertia: 3.0e-5       # estimate; reflected 0.0018 kg.m^2
+    max_motor_speed: 332.7      # 410 rpm no-load at the output
+    mass: 0.405                 # data sheet, 78.5 x 78.5 x 45.5 mm
+    joint_stiffness: 2143.0     # series(gear 5000 estimate, bracket, bearing)
+    friction: 0.15
+    quiescent_power: 2.0
+    bus_voltage: 48.0           # 24-60 V; 24 V is the bottom of the range
+    torque_constant: 0.1749     # N.m/A motor side (1.22 at the output)
+    phase_resistance: 0.58
+    phase_inductance: 2.6e-4    # data sheet 187-339 uH
+    max_phase_current: 16.26    # A rms (23 A peak)
+    thermal_resistance: 5.23    # K/W, from the 6 N.m rating
+    thermal_capacity: 70.0      # J/K, estimate -> time constant ~370 s
+    max_winding_temp: 130.0
+    ambient_temp: 25.0
+    insulation_class: B
+    encoder_bits: 14
+    output_encoder_bits: 14
+    bracket_stiffness: 6000.0
+    bearing_stiffness: 10000.0
+
+# -----------------------------------------------------------------------------
+# Kinematic chain. Same frame convention and joint layout as arm_config.yaml.
+#
+# Reach from the shoulder axis, stretched:
+#   link_2 0.400 + link_3 0.300 + link_4 0.080 + link_5 0.063 + link_6 0.040
+#   + TCP 0.125 = 1.008 m
+# extra_mass = adapters/fittings on that link + 0.08 kg of harness, so the
+# harness is included in the torque calculation, not only in the mass budget
+# (hence mass_model.harness_per_joint: 0 below).
+# -----------------------------------------------------------------------------
+joints:
+  - name: joint_1               # base yaw (turret)
+    type: revolute
+    origin_xyz: [0.0, 0.0, 0.0]
+    origin_rpy: [0.0, 0.0, 0.0]
+    axis: [0.0, 0.0, 1.0]
+    actuator: rs04
+    limits: {lower: -3.05, upper: 3.05, velocity: 1.20}
+    link:
+      name: link_1              # turret clevis, yaw -> shoulder pitch axis
+      length: 0.125             # R10
+      outer_diameter: 0.100     # EN 755-8 100 x 3
+      wall_thickness: 0.003
+      material: aluminium_6061
+      direction: [0.0, 0.0, 1.0]
+      extra_mass: 0.28          # clevis plates 0.20 + harness 0.08
+
+  - name: joint_2               # shoulder pitch  <-- reach is measured from here
+    type: revolute
+    origin_xyz: [0.0, 0.0, 0.0]
+    origin_rpy: [-1.5708, 0.0, 0.0]
+    axis: [0.0, 0.0, 1.0]
+    actuator: rs04
+    limits: {lower: -2.10, upper: 2.10, velocity: 1.20}
+    link:
+      name: link_2              # upper arm
+      length: 0.400             # R10; cut from 500 mm stock
+      outer_diameter: 0.080     # roll-wrapped CFRP 80 x 76
+      wall_thickness: 0.002
+      material: cfrp_tube
+      direction: [1.0, 0.0, 0.0]
+      extra_mass: 0.28          # two bonded aluminium end fittings 0.20 + harness 0.08
+
+  - name: joint_3               # elbow pitch
+    type: revolute
+    origin_xyz: [0.0, 0.0, 0.0]
+    origin_rpy: [0.0, 0.0, 0.0]
+    axis: [0.0, 0.0, 1.0]
+    actuator: rs04
+    limits: {lower: -2.60, upper: 2.60, velocity: 1.60}
+    link:
+      name: link_3              # forearm
+      length: 0.300             # R40; cut from 1 m stock
+      outer_diameter: 0.050     # roll-wrapped CFRP 50 x 47
+      wall_thickness: 0.0015
+      material: cfrp_tube
+      direction: [1.0, 0.0, 0.0]
+      extra_mass: 0.22          # end fittings 0.14 + harness 0.08
+
+  - name: joint_4               # wrist roll
+    type: revolute
+    origin_xyz: [0.0, 0.0, 0.0]
+    origin_rpy: [0.0, 1.5708, 0.0]
+    axis: [0.0, 0.0, 1.0]
+    actuator: rs02
+    limits: {lower: -3.05, upper: 3.05, velocity: 2.50}
+    link:
+      name: link_4
+      length: 0.080             # R10
+      outer_diameter: 0.070     # EN 755-8 70 x 3, machined
+      wall_thickness: 0.003
+      material: aluminium_6061
+      direction: [0.0, 0.0, 1.0]
+      extra_mass: 0.13          # bracket 0.05 + harness 0.08
+
+  - name: joint_5               # wrist pitch
+    type: revolute
+    origin_xyz: [0.0, 0.0, 0.0]
+    origin_rpy: [-1.5708, 0.0, 0.0]
+    axis: [0.0, 0.0, 1.0]
+    actuator: rs02
+    limits: {lower: -2.20, upper: 2.20, velocity: 2.50}
+    link:
+      name: link_5
+      length: 0.063             # R10
+      outer_diameter: 0.070     # EN 755-8 70 x 3, machined
+      wall_thickness: 0.003
+      material: aluminium_6061
+      direction: [1.0, 0.0, 0.0]
+      extra_mass: 0.13
+
+  - name: joint_6               # tool roll
+    type: revolute
+    origin_xyz: [0.0, 0.0, 0.0]
+    origin_rpy: [0.0, 1.5708, 0.0]
+    axis: [0.0, 0.0, 1.0]
+    actuator: rs02
+    limits: {lower: -3.05, upper: 3.05, velocity: 3.00}
+    link:
+      name: link_6              # ISO 9409-1-50-4-M6 tool flange
+      length: 0.040             # R10
+      outer_diameter: 0.063
+      wall_thickness: 0.005
+      material: aluminium_6061
+      direction: [0.0, 0.0, 1.0]
+      extra_mass: 0.08          # flange screws, last harness run
+
+# -----------------------------------------------------------------------------
+# End effector -- unchanged parallel gripper, within the 1.2 kg allowance.
+# -----------------------------------------------------------------------------
+end_effector:
+  name: gripper
+  mass: 1.05
+  tcp_offset: 0.125             # R10; body_length + finger_length / 2
+  com_offset: 0.045
+  body_length: 0.090
+  body_width: 0.100
+  body_height: 0.070
+  material: pa12_sls
+  simulate_fingers: true
+  stroke: 0.180
+  finger_length: 0.070
+  finger_thickness: 0.012
+  finger_width: 0.030
+  finger_mass: 0.06
+  grasp_mode: force
+  grip_force_min: 10.0
+  grip_force_max: 100.0
+  grip_speed: 0.05
+
+control:
+  update_rate: 200
+  command_interface: velocity
+  dynamic_torque_reserve: 0.25
+  gains:
+    p_scale: 12.0
+    i_scale: 0.4
+    d_scale: 1.2
+    i_clamp: 8.0
+  tcp_speed_limit: 0.20
+  tcp_acceleration: 0.50
+  contact_force_limit: 20.0
+
+can_bus:
+  bitrate: 1000000              # classical CAN
+  frames_per_joint_per_cycle: 2 # 1 command + 1 feedback per joint per cycle
+  bits_per_frame: 160           # Robstride private protocol: 29-bit extended IDs
+  max_utilisation: 0.60
+
+mass_model:
+  structure_factor: 1.25
+  fastener_fraction: 0.03
+  harness_per_joint: 0.0        # already inside each link's extra_mass
+
+structure:
+  end_fixity: fixed-pinned
+  target_cycles: 1.0e6
+  surface_factor: 0.75
+  bearing_rating: 12000.0
+  duty_revolutions_per_hour: 600.0
+  target_hours: 20000.0
+
+realtime:
+  loop_bandwidth: 10.0
+  tcp_lag_budget: 0.001
+
+sensing:
+  current_sense_bits: 12
+  ft_sensor_resolution: 0.1
+  output_encoder_bits: 14
+
+holding:
+  # No brake, matching arm_config.yaml. A 9:1 planetary is NOT self-locking:
+  # read the holding section of the engineering report before accepting this.
+  brake_fitted: false
+  second_encoder: true
+
+errors:
+  backlash_arcmin: 10.0         # estimate: single-stage planetary, not published
+  encoder_bits: 14
+  joint_zero_offset_arcmin: 2.0
+  link_length_tolerance: 0.0005
+  stiction_deadband_arcmin: 0.5
+  include_compliance: true
+  thermal_drift_arcmin: 0.0
+
+motion:
+  cartesian_speed: 0.20
+  cartesian_accel: 0.30
+  orientation_speed: 0.80
+  joint_acceleration: 3.0
+  path_resolution: 0.005
+
+spec_targets:
+  dof: 6
+  reach_min: 1.000
+  reach_max: 1.050
+  payload_at_full_reach: 2.0
+  payload_at_700mm: 3.0
+  arm_mass_target: 10.0
+  arm_mass_max: 12.0
+  ee_mass_allowance: 1.20
+  raw_positioning_accuracy: 0.010
+  vision_corrected_repeatability: 0.003
+  orientation_accuracy_deg: 2.0
+  tcp_speed: 0.20
+  contact_force_limit: 20.0
+  gripper_opening: 0.180
+  gripper_force_min: 10.0
+  gripper_force_max: 100.0
+  main_voltage: 48.0
+  secondary_voltage: 24.0
+  control_rate: 200
+  can_bitrate: 1000000
+
+test_poses:
+  home:        [0.0, -1.5708, 1.5708, 0.0, 0.0, 0.0]
+  full_reach:  auto_full_reach
+  reach_700:   auto_reach_0.700
+  overhead:    [0.0, -0.6, 0.6, 0.0, 0.0, 0.0]
