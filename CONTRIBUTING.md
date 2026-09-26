@@ -1,13 +1,15 @@
 # Contributing
 
-Use Python 3.12 for the ROS 2 Jazzy-compatible headless workflow:
+Use Python 3.12 for the headless CI workflow. For live ROS tests, use the system
+Python of the sourced ROS installation; the unified MoveIt/MuJoCo pipeline has
+been exercised on Humble. See [robot run commands](docs/RUN_ROBOTS.md) for setup.
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements-dev.txt
 python -m pip install -e src/arm_lab_model
-python -m pytest -q
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q
 robot_test check --samples 150
 python tools/build_docs.py --check
 ```
@@ -25,8 +27,16 @@ reported results. Run ROS/Gazebo checks separately when changing their code.
 
 For bug reports include the smallest reproducing YAML/MJCF, command, Python and
 engine versions, expected behaviour and actual output. For new robot types,
-discuss the [body-tree roadmap](docs/ROBOT_TESTING.md) before extending the
-serial-arm assumptions throughout the codebase.
+use the [shared tree model](docs/EXTENDED_PIPELINE.md) and
+[workspace modeling skill](skills/arm-lab-modeling/SKILL.md); fixed, branched and
+floating examples already exist. Use [agent instructions](AGENTS.md) and
+[the validation skill](skills/arm-lab-validation/SKILL.md) for ownership and checks.
+Keep legacy serial-arm interfaces distinct from general project manifests.
+
+The default suite excludes live ROS tests unless their opt-in flags are enabled.
+Report those skips separately from executed tests. Reproduce changes against the
+declared dependency range when library compatibility changes; a passing local
+NumPy 1.x environment does not establish compatibility with fresh CI dependencies.
 
 Architecture, domain models, ROS interfaces and implementation guidance are in
 the [documentation index](docs/README.md) and [developer guide](docs/DEVELOPMENT.md).

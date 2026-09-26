@@ -24,6 +24,12 @@
   <depend>builtin_interfaces</depend>
   <depend>python3-numpy</depend>
   <depend>python3-yaml</depend>
+  <exec_depend>moveit_msgs</exec_depend>
+  <exec_depend>action_msgs</exec_depend>
+  <exec_depend>shape_msgs</exec_depend>
+  <exec_depend>std_srvs</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>tf2_geometry_msgs</exec_depend>
 
   <test_depend>python3-pytest</test_depend>
 

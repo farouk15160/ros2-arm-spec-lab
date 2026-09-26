@@ -2,6 +2,12 @@
 
 [Documentation index](README.md) · [Contributing](../CONTRIBUTING.md)
 
+Coding agents start at [AGENTS.md](../AGENTS.md). Workspace
+[modeling](../skills/arm-lab-modeling/SKILL.md) and
+[validation](../skills/arm-lab-validation/SKILL.md) skills route robot additions,
+physical edits, test selection and evidence reporting. Keep these pointers
+current when moving public modules or changing the run workflows.
+
 ## Local development
 
 Use the headless setup in [Getting started](GETTING_STARTED.md). The root pytest
@@ -75,6 +81,9 @@ python tools/build_docs.py --check
 
 The skill-guided documentation workflow uses source-derived commands, inputs,
 types and launch arguments to reduce drift. CI runs the freshness/link check.
+CI also executes the UR5e `robot_pipeline reference-check` command and uploads
+its nominal-reference JSON with the physics artifacts. This checks analytical
+kinematics, not physical robot measurements.
 The checker validates relative file destinations, not URL availability or
 Markdown anchors. Diagram sources are Mermaid; GitHub renders embedded copies.
 When changing diagram syntax, render with a Mermaid-compatible preview as well.
@@ -85,16 +94,33 @@ Do not claim an unconfigured quality gate has run.
 
 ## Extending beyond serial arms
 
-Keep the existing YAML as a compatibility format. Introduce a separate versioned
-body/joint tree and an adapter from `ArmConfig` before replacing arm-specific
-assumptions. Model base type, parent transforms, geometry, full inertials,
-actuator/transmission units and multiple end effectors explicitly.
+The [project loader and topology contract](EXTENDED_PIPELINE.md) provide the
+versioned declaration boundary. Extend a component's strict schema and tests
+together. Preserve legacy YAML through `robot_legacy`; do not route a branched
+body tree through serial `ArmModel` assumptions. Both unified exporters consume
+`resolve_robot` results, so masses, COM, tensors and mesh transforms stay shared.
 
-First establish equivalent arm exports and model-independent scenario/results
-interfaces. Then add controller hooks and floating-base/contact metrics. A
-quadruped needs standing/stepping controllers and foot-contact evaluation;
-humanoids need whole-body balance and transition/fall handling. These are future
-features, not hidden capabilities of `robot_test smoke`.
+Useful test seams are `load_project`, `resolve_robot`, `physical_report`,
+`build_robot_urdf`, `build_robot_mjcf`, `RobotSimulation`, `run_trajectory`,
+`save_trajectory`, `compare_runs` and `write_benchmark_report`. Pure model and
+configuration tests run without ROS; actual action-message/adapter checks need
+ROS sourced. The live MoveIt check is opt-in and executes simulated motion:
 
-See [the staged robot testing plan](ROBOT_TESTING.md) and
-[review findings](REVIEW_AND_ROADMAP.md) for the current boundary.
+```bash
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q
+python3 tools/build_docs.py --check
+# Launch the pipeline first in a matching ROS_DOMAIN_ID, then:
+ARM_LAB_LIVE_PIPELINE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q \
+  src/arm_lab_kinematics/test/test_pipeline_planning.py -k live
+```
+
+See [planning](PIPELINE_PLANNING.md) for the ROS environment and
+[the workflow](PIPELINE_WORKFLOW.md) for actual evidence boundaries. A skipped
+ROS/OpenGL test is unavailable evidence, not a passing integration check.
+
+Further legged-robot work needs standing/stepping controllers, foot-contact
+metrics, calibrated friction, slip/support evaluation and whole-body balance.
+The [synthetic dog fixture](DOG12_DEMO.md) validates topology, physics conversion
+and numerical contact behavior; its contact-rich drop correctly fails generic
+collision-free trajectory acceptance. Add a contact-aware task policy before
+using trajectory success as a locomotion score.

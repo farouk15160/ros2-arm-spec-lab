@@ -1,0 +1,11 @@
+# Generic dog-style topology, not calibrated hardware or a walking controller.
+schema_version: 1
+robot: robot_quadruped_12dof.yaml
+materials: materials.yaml
+simulation: simulation.yaml
+moveit: moveit.yaml
+environment: environment.yaml
+sensors: sensors.yaml
+perception: perception.yaml
+benchmark: benchmark.yaml
+trajectories: trajectories.yaml

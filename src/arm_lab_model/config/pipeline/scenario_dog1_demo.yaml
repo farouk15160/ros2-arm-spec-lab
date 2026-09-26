@@ -1,0 +1,10 @@
+# Fixed-base front-left leg swing; angles radians, times seconds.
+schema_version: 1
+scenario_id: synthetic_dog1_leg_swing
+joint_names: [front_left_hip_pitch]
+end_effector: foot
+points:
+  - {time_from_start: 0.0, positions: [0.0]}
+  - {time_from_start: 1.0, positions: [0.25]}
+  - {time_from_start: 2.0, positions: [-0.20]}
+  - {time_from_start: 3.0, positions: [0.0]}

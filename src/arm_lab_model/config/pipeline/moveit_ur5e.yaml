@@ -1,0 +1,29 @@
+# Explicit simulation/planning policy; not a manufacturer acceleration rating.
+schema_version: 1
+enabled: true
+groups:
+  arm:
+    joints:
+    - shoulder_pan_joint
+    - shoulder_lift_joint
+    - elbow_joint
+    - wrist_1_joint
+    - wrist_2_joint
+    - wrist_3_joint
+    base_link: base_link
+    tip_link: tool0
+    kinematics_solver: kdl_kinematics_plugin/KDLKinematicsPlugin
+    controller: arm_controller
+default_group: arm
+acceleration_limits:
+  shoulder_pan_joint: 2.0
+  shoulder_lift_joint: 2.0
+  elbow_joint: 2.0
+  wrist_1_joint: 2.0
+  wrist_2_joint: 2.0
+  wrist_3_joint: 2.0
+velocity_scaling: 0.2
+acceleration_scaling: 0.2
+planning_time: 5.0
+position_tolerance: 0.005
+orientation_tolerance: 0.01

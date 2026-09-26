@@ -1,0 +1,3 @@
+# Perception is disabled; see perception_example.yaml for configurable modules.
+schema_version: 1
+enabled: false

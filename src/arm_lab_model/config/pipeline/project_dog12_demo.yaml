@@ -1,0 +1,4 @@
+schema_version: 1
+robot: robot_dog12_demo.yaml
+simulation: simulation.yaml
+environment: environment_dog12.yaml

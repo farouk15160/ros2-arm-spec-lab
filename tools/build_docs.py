@@ -69,6 +69,20 @@ def commands():
                     raise
         help_text = output.getvalue()
         lines += [f'### robot_test {command}', '', '```text', help_text.rstrip(), '```', '']
+    from arm_lab_model.pipeline_cli import main as pipeline_main
+    lines += ['## General robot pipeline subcommands', '',
+              'Use a versioned project manifest; legacy arm commands retain their original input.', '']
+    for command in ('build', 'analyze', 'reference-check', 'simulate', 'replay', 'compare'):
+        output = io.StringIO()
+        with (contextlib.redirect_stdout(output), patch.object(sys, 'argv', ['robot_pipeline']),
+              patch.dict(os.environ, {'COLUMNS': '80'})):
+            try:
+                pipeline_main([command, '--help'])
+            except SystemExit as exc:
+                if exc.code != 0:
+                    raise
+        lines += [f'### robot_pipeline {command}', '', '```text',
+                  output.getvalue().rstrip(), '```', '']
     lines += ['## ROS launch arguments', '',
               'An empty declared default can be resolved from YAML or an installed package',
               'by the launch setup function; it is not necessarily the effective runtime value.', '']
@@ -117,10 +131,18 @@ def api_reference():
              '[Domain models](DOMAIN_MODELS.md) explains ownership and semantics.',
              'Dataclass fields without defaults must be supplied by callers; normal users',
              'should call `load_config` instead of constructing the aggregate manually.', '']
-    modules = ['config', 'kinematics', 'actuator_model', 'mujoco_backend',
-               'urdf_builder', 'controllers_builder', 'spec_report', 'verification', 'system', 'structures']
-    for module in modules:
-        path = ROOT / 'src/arm_lab_model/arm_lab_model' / (module + '.py')
+    modules = ['config', 'project_config', 'robot_topology', 'mesh_physics', 'physical_robot',
+               'robot_legacy', 'robot_export', 'pipeline_options', 'pipeline_runtime', 'pipeline_cli',
+               'joint_trajectory', 'trajectory_store', 'scene_config', 'sensor_runtime', 'perception',
+               'benchmark_reference', 'benchmark_observations', 'benchmark_engine', 'benchmark_reports',
+               'kinematics', 'actuator_model', 'mujoco_backend', 'urdf_builder', 'controllers_builder',
+               'spec_report', 'verification', 'system', 'structures']
+    module_paths = [('arm_lab_model', module) for module in modules]
+    module_paths += [('arm_lab_kinematics', module) for module in ('pipeline_moveit', 'pipeline_target')]
+    module_paths += [('arm_lab_gui', module) for module in
+                     ('pipeline_scene', 'pipeline_perception', 'pipeline_sim_node')]
+    for package, module in module_paths:
+        path = ROOT / 'src' / package / package / (module + '.py')
         lines += [f'## {module}', '', f'[Source]({source_link(path)})', '']
         for node in tree(path).body:
             if not isinstance(node, (ast.ClassDef, ast.FunctionDef)) or node.name.startswith('_'):

@@ -1,0 +1,45 @@
+# Contact smoke, expected execution.failed under collision-free trajectory criterion.
+schema_version: 1
+scenario_id: synthetic_dog12_free_drop_hold
+joint_names:
+- front_left_abduction
+- front_left_hip_pitch
+- front_left_knee_pitch
+- front_right_abduction
+- front_right_hip_pitch
+- front_right_knee_pitch
+- rear_left_abduction
+- rear_left_hip_pitch
+- rear_left_knee_pitch
+- rear_right_abduction
+- rear_right_hip_pitch
+- rear_right_knee_pitch
+points:
+- time_from_start: 0
+  positions:
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+- time_from_start: 0.6
+  positions:
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0

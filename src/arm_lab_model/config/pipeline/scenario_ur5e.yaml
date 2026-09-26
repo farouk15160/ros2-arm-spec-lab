@@ -1,0 +1,62 @@
+# Explicit simulation/planning policy; not a manufacturer acceleration rating.
+schema_version: 1
+scenario_id: ur5e_small_joint_motion
+joint_names:
+- shoulder_pan_joint
+- shoulder_lift_joint
+- elbow_joint
+- wrist_1_joint
+- wrist_2_joint
+- wrist_3_joint
+acceleration_limits:
+  shoulder_pan_joint: 2.0
+  shoulder_lift_joint: 2.0
+  elbow_joint: 2.0
+  wrist_1_joint: 2.0
+  wrist_2_joint: 2.0
+  wrist_3_joint: 2.0
+points:
+- time_from_start: 0.0
+  positions:
+  - 0
+  - -1.5707963267948966
+  - 1.5707963267948966
+  - -1.5707963267948966
+  - -1.5707963267948966
+  - 0
+  velocities:
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  accelerations:
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+- time_from_start: 3.0
+  positions:
+  - 0.15
+  - -1.4707963267948965
+  - 1.4707963267948965
+  - -1.5707963267948966
+  - -1.5707963267948966
+  - 0
+  velocities:
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  accelerations:
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0

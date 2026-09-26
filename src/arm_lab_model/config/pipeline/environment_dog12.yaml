@@ -1,0 +1,22 @@
+schema_version: 1
+enabled: true
+objects:
+- name: floor
+  geometry:
+    type: box
+    size:
+    - 5
+    - 5
+    - 0.1
+  pose:
+    xyz:
+    - 0
+    - 0
+    - -0.05
+    rpy:
+    - 0
+    - 0
+    - 0
+  static: true
+  frame: world
+  mass: null

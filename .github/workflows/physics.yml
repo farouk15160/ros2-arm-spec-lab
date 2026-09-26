@@ -15,8 +15,11 @@ jobs:
       - run: python -m pytest -q
       - run: robot_test check --samples 150 --output physics-check.json
       - run: robot_test simulate --duration 0.5 --output physics-hold.json
+      - run: robot_pipeline reference-check src/arm_lab_model/config/pipeline/project_ur5e.yaml --output pipeline-reference
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: physics-results
-          path: physics-*.json
+          path: |
+            physics-*.json
+            pipeline-reference/*.json

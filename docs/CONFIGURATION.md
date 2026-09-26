@@ -4,6 +4,22 @@
 
 ## Selection and precedence
 
+The [project configuration guide](EXTENDED_PIPELINE.md) covers the general
+pipeline, with component-specific examples in the [physical](PHYSICAL_ROBOT.md),
+[planning](PIPELINE_PLANNING.md), [scene/perception](SCENE_PERCEPTION.md) and
+[benchmark](TRAJECTORIES_BENCHMARKS.md) guides. Project files live under
+`src/arm_lab_model/config/pipeline/` and reference one robot plus optional components.
+Validate with `project_check PATH`; build/run with `robot_pipeline` or
+`pipeline.launch.py project_file:=PATH`. `project_ur5e.yaml` is the integrated arm
+example and `project_dog12_demo.yaml` supplies synthetic floating-base physics.
+The original `project_quadruped_12dof.yaml` remains incomplete topology-only input.
+
+The checker lists unknown tree inertials/limits and never establishes runtime
+readiness. Resolution, export and execution apply their own required-input checks.
+Explicit experiment acceleration limits are distinct from verified hardware limits.
+Project component values affect pipeline commands, not legacy arm commands.
+The remainder of this page documents that legacy format and its precedence.
+
 Use `--config PATH` for offline commands or `config_file:=PATH` for ROS launch.
 An explicit path is the clearest way to ensure all tools use the same design.
 `load_config` without a path consults `ARM_LAB_CONFIG`, then ROS package lookup,

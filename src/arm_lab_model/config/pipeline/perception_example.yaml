@@ -1,0 +1,26 @@
+schema_version: 1
+enabled: true
+pointcloud:
+  enabled: true
+  camera: wrist_camera
+  min_depth: 0.05
+  max_depth: 5.0
+  voxel_size: 0.01
+  target_frame: world
+octomap:
+  enabled: true
+  resolution: 0.05
+  max_range: 5.0
+slam:
+  enabled: false
+object_recognition:
+  enabled: false
+  # Optional baseline: connected red pixels, not semantic classification.
+  plugin: builtin:color_components
+  camera: wrist_camera
+  parameters:
+    lower_rgb: [180, 0, 0]
+    upper_rgb: [255, 80, 80]
+    min_pixels: 20
+image_policy:
+  enabled: false

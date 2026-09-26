@@ -1,0 +1,6 @@
+# Shared MuJoCo run settings for general robot project manifests.
+schema_version: 1
+backend: mujoco
+timestep: 0.001
+gravity: [0.0, 0.0, -9.81]
+seed: 0

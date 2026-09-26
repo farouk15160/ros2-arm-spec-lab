@@ -4,6 +4,10 @@
 
 ## 1. Choose your workflow
 
+For UR5e or dog configurations, follow [Run different robots](RUN_ROBOTS.md),
+including the tested Humble MuJoCo/RViz pipeline and literal 1-DOF dog commands.
+The Jazzy/Gazebo instructions below describe the original serial-arm workflow.
+
 For model calculations and MuJoCo tests, use Python 3.12 and the headless setup
 below. For the editor, live dashboard, RViz and Gazebo, use the ROS 2 Jazzy
 workspace. The shipped ROS configuration targets Gazebo Harmonic. The two

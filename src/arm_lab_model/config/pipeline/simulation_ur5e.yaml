@@ -1,0 +1,17 @@
+schema_version: 1
+backend: mujoco
+timestep: 0.001
+gravity:
+- 0
+- 0
+- -9.81
+seed: 0
+initial_positions:
+- 0
+- -1.5707963267948966
+- 1.5707963267948966
+- -1.5707963267948966
+- -1.5707963267948966
+- 0
+bandwidth_hz: 5.0
+max_error: 0.05

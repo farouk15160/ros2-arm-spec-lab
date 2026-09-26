@@ -1,0 +1,10 @@
+# Runnable ideal RGB-D + static world + real MoveIt OctoMap updater example.
+schema_version: 1
+robot: robot_ur5e.yaml
+simulation: simulation_ur5e.yaml
+moveit: moveit_ur5e.yaml
+environment: environment_example.yaml
+sensors: sensors_example.yaml
+perception: perception_example.yaml
+benchmark: benchmark_ur5e.yaml
+trajectories: trajectories_enabled.yaml

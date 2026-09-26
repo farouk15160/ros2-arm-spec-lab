@@ -1,0 +1,4 @@
+interface:
+  display_name: "Arm Lab Robot Modeling"
+  short_description: "Extend robot models and preserve physical consistency"
+  default_prompt: "Use $arm-lab-modeling to add or edit a robot model and validate its physical properties."

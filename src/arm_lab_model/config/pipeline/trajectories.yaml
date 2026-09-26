@@ -1,0 +1,3 @@
+# No automatic storage directory configured; explicit CLI --save uses its output directory.
+schema_version: 1
+enabled: false

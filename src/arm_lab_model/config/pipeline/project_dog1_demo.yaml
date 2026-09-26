@@ -1,0 +1,4 @@
+# Runnable literal 1-DOF dog-shaped fixture; no locomotion or vendor claims.
+schema_version: 1
+robot: robot_dog1_demo.yaml
+simulation: simulation.yaml

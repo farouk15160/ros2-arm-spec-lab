@@ -1,0 +1,50 @@
+Panels:
+- Class: rviz_common/Displays
+  Name: Displays
+- Class: rviz_common/Tool Properties
+  Name: Tool Properties
+Visualization Manager:
+  Class: ''
+  Displays:
+  - Class: rviz_default_plugins/Grid
+    Name: Grid
+    Enabled: true
+    Cell Size: 0.25
+  - Class: rviz_default_plugins/RobotModel
+    Name: Robot
+    Enabled: true
+    Description Topic:
+      Value: /robot_description
+      Durability Policy: Transient Local
+    Visual Enabled: true
+    Collision Enabled: false
+  - Class: rviz_default_plugins/MarkerArray
+    Name: Environment
+    Enabled: true
+    Topic:
+      Value: /pipeline/environment_markers
+      Durability Policy: Transient Local
+  - Class: rviz_default_plugins/PointCloud2
+    Name: Perception
+    Enabled: false
+    Topic:
+      Value: /perception/points
+    Size (Pixels): 2
+  Global Options:
+    Fixed Frame: world
+    Background Color: 48; 52; 58
+    Frame Rate: 30
+  Tools:
+  - Class: rviz_default_plugins/Interact
+  - Class: rviz_default_plugins/MoveCamera
+  - Class: rviz_default_plugins/Select
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: 3.0
+      Pitch: 0.4
+      Yaw: 0.7
+      Target Frame: <Fixed Frame>
+Window Geometry:
+  Width: 1280
+  Height: 800

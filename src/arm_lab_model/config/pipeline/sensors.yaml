@@ -1,0 +1,3 @@
+# Cameras are disabled; see sensors_example.yaml for a mounted RGB-D example.
+schema_version: 1
+enabled: false

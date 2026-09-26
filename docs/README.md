@@ -2,14 +2,26 @@
 
 Robot Design Lab is the project documented by the `ros2-arm-spec-lab` repository.
 It combines parameter-driven serial-arm design analysis, generated ROS/Gazebo
-models, a configuration editor and dashboard, and optional MuJoCo testing.
+models, a configuration editor and dashboard, and a general robot pipeline with
+MuJoCo, MoveIt, perception adapters and reference benchmarking.
 
 ## Start here
 
 | Goal | Read |
 |---|---|
 | Install and run your first test | [Getting started](GETTING_STARTED.md) |
+| Run/test the original arm, UR5e, 1-DOF dog or 12-DOF dog | [Robot run commands](RUN_ROBOTS.md) |
+| Extend this workspace with a coding agent | [Agent instructions and skills](../AGENTS.md) |
 | Understand packages and system boundaries | [Architecture and system diagram](ARCHITECTURE.md) |
+| Run the complete project pipeline | [Build, simulate, plan, save and benchmark](PIPELINE_WORKFLOW.md) |
+| Configure general robot trees and components | [Pipeline architecture and configuration](EXTENDED_PIPELINE.md) |
+| Import STL and derive mass, COM and inertia | [Physical model and unified exports](PHYSICAL_ROBOT.md) |
+| Inspect UR5e provenance and reference limits | [UR5e benchmark reference](UR5E_REFERENCE.md) |
+| Plan point/pose targets and save execution | [MoveIt and RViz workflow](PIPELINE_PLANNING.md) |
+| Add worlds, cameras and perception | [Environment, sensors and perception](SCENE_PERCEPTION.md) |
+| Replay trajectories and compare reference data | [Storage, benchmark engine and reports](TRAJECTORIES_BENCHMARKS.md) |
+| Run a floating robot with twelve actuators | [Synthetic dog demo](DOG12_DEMO.md) |
+| Run a fixed dog-shaped fixture with one actuated leg | [Literal 1-DOF dog demo](DOG1_DEMO.md) |
 | Understand entities, ownership and reference frames | [Domain models](DOMAIN_MODELS.md) |
 | Enter link, joint, actuator and tool parameters | [Configuration guide](CONFIGURATION.md) |
 | Look up every value in the shipped example | [Generated configuration values](CONFIG_VALUES.md) |
@@ -28,7 +40,10 @@ models, a configuration editor and dashboard, and optional MuJoCo testing.
 | Serial rotary arm | YAML design, measured inertials, FK/IK, loads, reports, GUI | Calibrated real-robot accuracy or safety |
 | MuJoCo arm tests | Independent rigid-body checks, torque-limited hold/motion, JSON results | Contact-free tests do not prove grasping or collision-free motion |
 | ROS/Gazebo | Generated URDF/controllers, launch, monitoring, motion tools | Identical actuator dynamics to the MuJoCo benchmark |
-| Other robot types | Load and step external branched/floating-base MJCF | General robot editor, gait generation, balance control or sizing reports |
+| General robot pipeline | Branched/floating trees, STL properties, unified exports, controlled MuJoCo scenarios | General design GUI, gait/balance control or calibrated contacts |
+| MoveIt/RViz | Group/controller generation, point/pose preview, simulation execution, successful trajectory saving | Hardware execution or locomotion planning |
+| Sensors/perception | RGB/depth rendering, calibrated clouds/filtering, OctoMap configuration and algorithm interfaces | Bundled SLAM, trained semantic recognition or learned control |
+| Reference benchmarking | UR5e nominal FK, recorded-channel comparison, metrics and plots | Real UR5e motion agreement without independently acquired measurements |
 | Engineering estimates | Electrical/thermal, beam, fatigue, timing and sensing analyses | Detailed FEA, calibrated drive electronics or a hardware qualification |
 
 Diagrams are embedded as Mermaid and render directly on GitHub. Editable

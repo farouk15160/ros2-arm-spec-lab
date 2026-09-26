@@ -1,0 +1,11 @@
+# Legacy arm adapted into the general tree pipeline; legacy commands still use arm_config.yaml.
+schema_version: 1
+robot: robot.yaml
+materials: materials.yaml
+simulation: simulation.yaml
+moveit: moveit.yaml
+environment: environment.yaml
+sensors: sensors.yaml
+perception: perception.yaml
+benchmark: benchmark.yaml
+trajectories: trajectories.yaml

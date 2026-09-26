@@ -1,0 +1,491 @@
+schema_version: 1
+format: tree
+name: ur5e
+family: serial_manipulator
+source: Universal Robots ROS2 description b48aa88ac18a17466e767929f05f45b23e332a8e.
+  Nominal kinematics; uncalibrated. Primitive visual/collision geometry is an approximation,
+  not certified CAD. Base mass uncertain; see ../benchmarks/ur5e.yaml.
+base:
+  type: fixed
+  link: base_link
+links:
+- name: base_link
+  inertial:
+    mass: 0.0
+    com:
+    - 0.0
+    - 0.0
+    - 0.0
+    inertia:
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    source: Massless coordinate frame, not a physical assembly.
+- name: base_link_inertia
+  inertial:
+    mass: 4.0
+    com:
+    - 0.0
+    - 0.0
+    - 0.0
+    inertia:
+    - 0.004433333333333333
+    - 0.004433333333333333
+    - 0.0072
+    - 0.0
+    - 0.0
+    - 0.0
+    source: 'ur_description b48aa88ac18a17466e767929f05f45b23e332a8e: approximate
+      base cylinder; upstream warns base mass might be incorrect.'
+  geometry:
+    type: cylinder
+    radius: 0.06
+    length: 0.05
+    origin:
+      xyz:
+      - 0.0
+      - 0.0
+      - 0.0
+      rpy:
+      - 0.0
+      - 0.0
+      - 0.0
+- name: shoulder_link
+  inertial:
+    mass: 3.761
+    com:
+    - 0.0
+    - -0.00193
+    - -0.02561
+    inertia:
+    - 0.0070021
+    - 0.00657286
+    - 0.00648091
+    - 1.053e-05
+    - 7.30000000000004e-07
+    - -0.00049994
+    source: ur_description b48aa88ac18a17466e767929f05f45b23e332a8e physical_parameters.yaml;
+      tensor rotated from inertial axes to link axes.
+  geometry:
+    type: sphere
+    radius: 0.06
+    origin:
+      xyz:
+      - 0.0
+      - 0.0
+      - 0.0
+      rpy:
+      - 0.0
+      - 0.0
+      - 0.0
+- name: upper_arm_link
+  inertial:
+    mass: 8.058
+    com:
+    - -0.2125
+    - 0.0
+    - 0.11336
+    inertia:
+    - 0.01505885
+    - 0.33388086
+    - 0.33247207
+    - -5.4e-05
+    - 5.63e-06
+    - -1.81e-06
+    source: ur_description b48aa88ac18a17466e767929f05f45b23e332a8e physical_parameters.yaml;
+      tensor rotated from inertial axes to link axes.
+  geometry:
+    type: cylinder
+    radius: 0.054
+    length: 0.425
+    origin:
+      xyz:
+      - -0.2125
+      - 0.0
+      - 0.138
+      rpy:
+      - 0.0
+      - 1.5707963267948966
+      - 0.0
+- name: forearm_link
+  inertial:
+    mass: 2.846
+    com:
+    - -0.2422
+    - 0.0
+    - 0.0265
+    inertia:
+    - 0.00399632
+    - 0.07879254
+    - 0.0784851
+    - -1.365e-05
+    - 0.00137272
+    - -6.6e-06
+    source: ur_description b48aa88ac18a17466e767929f05f45b23e332a8e physical_parameters.yaml;
+      tensor rotated from inertial axes to link axes.
+  geometry:
+    type: cylinder
+    radius: 0.04
+    length: 0.3922
+    origin:
+      xyz:
+      - -0.1961
+      - 0.0
+      - 0.007
+      rpy:
+      - 0.0
+      - 1.5707963267948966
+      - 0.0
+- name: wrist_1_link
+  inertial:
+    mass: 1.37
+    com:
+    - 0.0
+    - -0.01634
+    - -0.0018
+    inertia:
+    - 0.00165491
+    - 0.00126279
+    - 0.00135962
+    - 4.380000000000001e-06
+    - -2.8199999999999984e-06
+    - -0.00010157000000000003
+    source: ur_description b48aa88ac18a17466e767929f05f45b23e332a8e physical_parameters.yaml;
+      tensor rotated from inertial axes to link axes.
+  geometry:
+    type: sphere
+    radius: 0.045
+    origin:
+      xyz:
+      - 0.0
+      - 0.0
+      - 0.0
+      rpy:
+      - 0.0
+      - 0.0
+      - 0.0
+- name: wrist_2_link
+  inertial:
+    mass: 1.3
+    com:
+    - 0.0
+    - 0.01634
+    - -0.0018
+    inertia:
+    - 0.00135617
+    - 0.00096614
+    - 0.00127827
+    - 4.440000000000001e-06
+    - 2.7399999999999983e-06
+    - 5.048000000000011e-05
+    source: ur_description b48aa88ac18a17466e767929f05f45b23e332a8e physical_parameters.yaml;
+      tensor rotated from inertial axes to link axes.
+  geometry:
+    type: sphere
+    radius: 0.045
+    origin:
+      xyz:
+      - 0.0
+      - 0.0
+      - 0.0
+      rpy:
+      - 0.0
+      - 0.0
+      - 0.0
+- name: wrist_3_link
+  inertial:
+    mass: 0.365
+    com:
+    - 0.0
+    - 0.0
+    - -0.001159
+    inertia:
+    - 0.00018694
+    - 0.00018908
+    - 0.00025756
+    - 6.0e-08
+    - -1.7e-07
+    - -9.2e-07
+    source: ur_description b48aa88ac18a17466e767929f05f45b23e332a8e physical_parameters.yaml;
+      tensor rotated from inertial axes to link axes.
+  geometry:
+    type: sphere
+    radius: 0.045
+    origin:
+      xyz:
+      - 0.0
+      - 0.0
+      - 0.0
+      rpy:
+      - 0.0
+      - 0.0
+      - 0.0
+- name: base
+  inertial:
+    mass: 0.0
+    com:
+    - 0.0
+    - 0.0
+    - 0.0
+    inertia:
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    source: Massless coordinate frame, not a physical assembly.
+- name: ft_frame
+  inertial:
+    mass: 0.0
+    com:
+    - 0.0
+    - 0.0
+    - 0.0
+    inertia:
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    source: Massless coordinate frame, not a physical assembly.
+- name: flange
+  inertial:
+    mass: 0.0
+    com:
+    - 0.0
+    - 0.0
+    - 0.0
+    inertia:
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    source: Massless coordinate frame, not a physical assembly.
+- name: tool0
+  inertial:
+    mass: 0.0
+    com:
+    - 0.0
+    - 0.0
+    - 0.0
+    inertia:
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    source: Massless coordinate frame, not a physical assembly.
+joints:
+- name: base_inertia_joint
+  type: fixed
+  parent: base_link
+  child: base_link_inertia
+  origin:
+    xyz:
+    - 0.0
+    - 0.0
+    - 0.0
+    rpy:
+    - 0.0
+    - 0.0
+    - 3.141592653589793
+- name: shoulder_pan_joint
+  type: revolute
+  parent: base_link_inertia
+  child: shoulder_link
+  origin:
+    xyz:
+    - 0
+    - 0
+    - 0.1625
+    rpy:
+    - 0
+    - 0
+    - 0
+  axis:
+  - 0.0
+  - 0.0
+  - 1.0
+  limits:
+    lower: -6.283185307179586
+    upper: 6.283185307179586
+    velocity: 3.141592653589793
+    acceleration: null
+    effort: 150.0
+- name: shoulder_lift_joint
+  type: revolute
+  parent: shoulder_link
+  child: upper_arm_link
+  origin:
+    xyz:
+    - 0
+    - 0
+    - 0
+    rpy:
+    - 1.570796327
+    - 0
+    - 0
+  axis:
+  - 0.0
+  - 0.0
+  - 1.0
+  limits:
+    lower: -6.283185307179586
+    upper: 6.283185307179586
+    velocity: 3.141592653589793
+    acceleration: null
+    effort: 150.0
+- name: elbow_joint
+  type: revolute
+  parent: upper_arm_link
+  child: forearm_link
+  origin:
+    xyz:
+    - -0.425
+    - 0
+    - 0
+    rpy:
+    - 0
+    - 0
+    - 0
+  axis:
+  - 0.0
+  - 0.0
+  - 1.0
+  limits:
+    lower: -3.141592653589793
+    upper: 3.141592653589793
+    velocity: 3.141592653589793
+    acceleration: null
+    effort: 150.0
+- name: wrist_1_joint
+  type: revolute
+  parent: forearm_link
+  child: wrist_1_link
+  origin:
+    xyz:
+    - -0.3922
+    - 0
+    - 0.1333
+    rpy:
+    - 0
+    - 0
+    - 0
+  axis:
+  - 0.0
+  - 0.0
+  - 1.0
+  limits:
+    lower: -6.283185307179586
+    upper: 6.283185307179586
+    velocity: 3.141592653589793
+    acceleration: null
+    effort: 28.0
+- name: wrist_2_joint
+  type: revolute
+  parent: wrist_1_link
+  child: wrist_2_link
+  origin:
+    xyz:
+    - 0
+    - -0.0997
+    - -2.044881182297852e-11
+    rpy:
+    - 1.570796327
+    - 0
+    - 0
+  axis:
+  - 0.0
+  - 0.0
+  - 1.0
+  limits:
+    lower: -6.283185307179586
+    upper: 6.283185307179586
+    velocity: 3.141592653589793
+    acceleration: null
+    effort: 28.0
+- name: wrist_3_joint
+  type: revolute
+  parent: wrist_2_link
+  child: wrist_3_link
+  origin:
+    xyz:
+    - 0
+    - 0.0996
+    - -2.042830148012698e-11
+    rpy:
+    - 1.570796326589793
+    - 3.141592653589793
+    - 3.141592653589793
+  axis:
+  - 0.0
+  - 0.0
+  - 1.0
+  limits:
+    lower: -6.283185307179586
+    upper: 6.283185307179586
+    velocity: 3.141592653589793
+    acceleration: null
+    effort: 28.0
+- name: base_coordinates_joint
+  type: fixed
+  parent: base_link
+  child: base
+  origin:
+    xyz:
+    - 0.0
+    - 0.0
+    - 0.0
+    rpy:
+    - 0.0
+    - 0.0
+    - 3.141592653589793
+- name: ft_frame_joint
+  type: fixed
+  parent: wrist_3_link
+  child: ft_frame
+  origin:
+    xyz:
+    - 0.0
+    - 0.0
+    - 0.0
+    rpy:
+    - 3.141592653589793
+    - 0.0
+    - 0.0
+- name: flange_joint
+  type: fixed
+  parent: wrist_3_link
+  child: flange
+  origin:
+    xyz:
+    - 0.0
+    - 0.0
+    - 0.0
+    rpy:
+    - 0.0
+    - -1.5707963267948966
+    - -1.5707963267948966
+- name: tool0_joint
+  type: fixed
+  parent: flange
+  child: tool0
+  origin:
+    xyz:
+    - 0.0
+    - 0.0
+    - 0.0
+    rpy:
+    - 1.5707963267948966
+    - 0.0
+    - 1.5707963267948966
+end_effectors:
+  tool: tool0

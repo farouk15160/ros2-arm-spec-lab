@@ -19,6 +19,9 @@ for ROS installs; use `COMMAND --help` for offline CLI options.
 | `arm_lab_gui` | `capability_node` | [arm_lab_gui.capability_node:main](../src/arm_lab_gui/arm_lab_gui/capability_node.py) |
 | `arm_lab_gui` | `speed_test` | [arm_lab_gui.speed_test:main](../src/arm_lab_gui/arm_lab_gui/speed_test.py) |
 | `arm_lab_gui` | `mujoco_sim` | [arm_lab_gui.mujoco_sim_node:main](../src/arm_lab_gui/arm_lab_gui/mujoco_sim_node.py) |
+| `arm_lab_gui` | `pipeline_sim` | [arm_lab_gui.pipeline_sim_node:main](../src/arm_lab_gui/arm_lab_gui/pipeline_sim_node.py) |
+| `arm_lab_gui` | `pipeline_perception` | [arm_lab_gui.pipeline_perception:main](../src/arm_lab_gui/arm_lab_gui/pipeline_perception.py) |
+| `arm_lab_gui` | `pipeline_scene` | [arm_lab_gui.pipeline_scene:main](../src/arm_lab_gui/arm_lab_gui/pipeline_scene.py) |
 | `arm_lab_kinematics` | `ik_check` | [arm_lab_kinematics.cli:ik_check_main](../src/arm_lab_kinematics/arm_lab_kinematics/cli.py) |
 | `arm_lab_kinematics` | `workspace` | [arm_lab_kinematics.cli:workspace_main](../src/arm_lab_kinematics/arm_lab_kinematics/cli.py) |
 | `arm_lab_kinematics` | `singularity` | [arm_lab_kinematics.cli:singularity_main](../src/arm_lab_kinematics/arm_lab_kinematics/cli.py) |
@@ -31,6 +34,8 @@ for ROS installs; use `COMMAND --help` for offline CLI options.
 | `arm_lab_kinematics` | `pick_place` | [arm_lab_kinematics.pick_place:main](../src/arm_lab_kinematics/arm_lab_kinematics/pick_place.py) |
 | `arm_lab_kinematics` | `cartesian_move` | [arm_lab_kinematics.cartesian_node:main](../src/arm_lab_kinematics/arm_lab_kinematics/cartesian_node.py) |
 | `arm_lab_kinematics` | `workspace_markers` | [arm_lab_kinematics.workspace_markers:main](../src/arm_lab_kinematics/arm_lab_kinematics/workspace_markers.py) |
+| `arm_lab_kinematics` | `pipeline_target` | [arm_lab_kinematics.pipeline_target:main](../src/arm_lab_kinematics/arm_lab_kinematics/pipeline_target.py) |
+| `arm_lab_kinematics` | `pipeline_target_cli` | [arm_lab_kinematics.pipeline_target:cli_main](../src/arm_lab_kinematics/arm_lab_kinematics/pipeline_target.py) |
 | `arm_lab_model` | `spec_report` | [arm_lab_model.spec_report:main](../src/arm_lab_model/arm_lab_model/spec_report.py) |
 | `arm_lab_model` | `urdf_gen` | [arm_lab_model.cli:urdf_main](../src/arm_lab_model/arm_lab_model/cli.py) |
 | `arm_lab_model` | `controllers_gen` | [arm_lab_model.cli:controllers_main](../src/arm_lab_model/arm_lab_model/cli.py) |
@@ -38,6 +43,8 @@ for ROS installs; use `COMMAND --help` for offline CLI options.
 | `arm_lab_model` | `verify_physics` | [arm_lab_model.verification:main](../src/arm_lab_model/arm_lab_model/verification.py) |
 | `arm_lab_model` | `engineering_report` | [arm_lab_model.engineering_report:main](../src/arm_lab_model/arm_lab_model/engineering_report.py) |
 | `arm_lab_model` | `robot_test` | [arm_lab_model.mujoco_backend:main](../src/arm_lab_model/arm_lab_model/mujoco_backend.py) |
+| `arm_lab_model` | `project_check` | [arm_lab_model.project_config:main](../src/arm_lab_model/arm_lab_model/project_config.py) |
+| `arm_lab_model` | `robot_pipeline` | [arm_lab_model.pipeline_cli:main](../src/arm_lab_model/arm_lab_model/pipeline_cli.py) |
 
 ## MuJoCo subcommands
 
@@ -114,6 +121,109 @@ options:
   --keyframe KEYFRAME
 ```
 
+## General robot pipeline subcommands
+
+Use a versioned project manifest; legacy arm commands retain their original input.
+
+### robot_pipeline build
+
+```text
+usage: robot_pipeline build [-h] [--output OUTPUT] project
+
+positional arguments:
+  project
+
+options:
+  -h, --help            show this help message and exit
+  --output OUTPUT, -o OUTPUT
+```
+
+### robot_pipeline analyze
+
+```text
+usage: robot_pipeline analyze [-h] [--output OUTPUT] project
+
+positional arguments:
+  project
+
+options:
+  -h, --help            show this help message and exit
+  --output OUTPUT, -o OUTPUT
+```
+
+### robot_pipeline reference-check
+
+```text
+usage: robot_pipeline reference-check [-h] [--output OUTPUT] project
+
+positional arguments:
+  project
+
+options:
+  -h, --help            show this help message and exit
+  --output OUTPUT, -o OUTPUT
+```
+
+### robot_pipeline simulate
+
+```text
+usage: robot_pipeline simulate [-h] [--output OUTPUT] --scenario SCENARIO
+                               [--benchmark]
+                               [--benchmark-robot BENCHMARK_ROBOT]
+                               [--reference REFERENCE] [--save]
+                               project
+
+positional arguments:
+  project
+
+options:
+  -h, --help            show this help message and exit
+  --output OUTPUT, -o OUTPUT
+  --scenario SCENARIO
+  --benchmark
+  --benchmark-robot BENCHMARK_ROBOT
+  --reference REFERENCE
+  --save
+```
+
+### robot_pipeline replay
+
+```text
+usage: robot_pipeline replay [-h] [--output OUTPUT] --trajectory TRAJECTORY
+                             [--benchmark] [--benchmark-robot BENCHMARK_ROBOT]
+                             [--reference REFERENCE] [--save]
+                             project
+
+positional arguments:
+  project
+
+options:
+  -h, --help            show this help message and exit
+  --output OUTPUT, -o OUTPUT
+  --trajectory TRAJECTORY
+  --benchmark
+  --benchmark-robot BENCHMARK_ROBOT
+  --reference REFERENCE
+  --save
+```
+
+### robot_pipeline compare
+
+```text
+usage: robot_pipeline compare [-h] --tolerances TOLERANCES [--output OUTPUT]
+                              simulation reference
+
+positional arguments:
+  simulation
+  reference
+
+options:
+  -h, --help            show this help message and exit
+  --tolerances TOLERANCES
+                        YAML mapping of metric names to absolute tolerances
+  --output OUTPUT, -o OUTPUT
+```
+
 ## ROS launch arguments
 
 An empty declared default can be resolved from YAML or an installed package
@@ -131,6 +241,21 @@ by the launch setup function; it is not necessarily the effective runtime value.
 | `gravity` | `''` | See launch source. |
 | `use_sim_time` | `'true'` | See launch source. |
 | `capability` | `'true'` | See launch source. |
+
+### pipeline.launch.py
+
+[Source](../src/arm_lab_bringup/launch/pipeline.launch.py)
+
+| Argument | Declared default | Description |
+|---|---|---|
+| `project_file` | `''` | See launch source. |
+| `benchmark` | `'false'` | See launch source. |
+| `benchmark_robot` | `''` | See launch source. |
+| `benchmark_reference` | `''` | See launch source. |
+| `output_dir` | `'benchmark_reports'` | See launch source. |
+| `group` | `''` | See launch source. |
+| `scenario_id` | `'ros_execution'` | See launch source. |
+| `rviz` | `'true'` | See launch source. |
 
 ### sim.launch.py
 

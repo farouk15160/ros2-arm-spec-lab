@@ -1,0 +1,134 @@
+# Configuration example ONLY. Null means unknown, never zero.
+# The floating base adds six velocity DOF, not six actuated joints.
+schema_version: 1
+format: tree
+name: dog_12dof
+family: quadruped
+source: Illustrative topology only; transforms are placeholders, not manufacturer
+  geometry.
+base: {link: body, type: floating}
+links:
+- {name: body, inertial: null}
+- {name: front_left_0, inertial: null}
+- {name: front_left_1, inertial: null}
+- {name: front_left_2, inertial: null}
+- {name: front_right_0, inertial: null}
+- {name: front_right_1, inertial: null}
+- {name: front_right_2, inertial: null}
+- {name: rear_left_0, inertial: null}
+- {name: rear_left_1, inertial: null}
+- {name: rear_left_2, inertial: null}
+- {name: rear_right_0, inertial: null}
+- {name: rear_right_1, inertial: null}
+- {name: rear_right_2, inertial: null}
+joints:
+- name: front_left_joint_0
+  type: revolute
+  parent: body
+  child: front_left_0
+  origin:
+    xyz: [0.0, 0.0, 0.0]
+    rpy: [0.0, 0.0, 0.0]
+  axis: [0.0, 1.0, 0.0]
+  limits: {lower: null, upper: null, velocity: null, acceleration: null, effort: null}
+- name: front_left_joint_1
+  type: revolute
+  parent: front_left_0
+  child: front_left_1
+  origin:
+    xyz: [0.0, 0.0, 0.0]
+    rpy: [0.0, 0.0, 0.0]
+  axis: [0.0, 1.0, 0.0]
+  limits: {lower: null, upper: null, velocity: null, acceleration: null, effort: null}
+- name: front_left_joint_2
+  type: revolute
+  parent: front_left_1
+  child: front_left_2
+  origin:
+    xyz: [0.0, 0.0, 0.0]
+    rpy: [0.0, 0.0, 0.0]
+  axis: [0.0, 1.0, 0.0]
+  limits: {lower: null, upper: null, velocity: null, acceleration: null, effort: null}
+- name: front_right_joint_0
+  type: revolute
+  parent: body
+  child: front_right_0
+  origin:
+    xyz: [0.0, 0.0, 0.0]
+    rpy: [0.0, 0.0, 0.0]
+  axis: [0.0, 1.0, 0.0]
+  limits: {lower: null, upper: null, velocity: null, acceleration: null, effort: null}
+- name: front_right_joint_1
+  type: revolute
+  parent: front_right_0
+  child: front_right_1
+  origin:
+    xyz: [0.0, 0.0, 0.0]
+    rpy: [0.0, 0.0, 0.0]
+  axis: [0.0, 1.0, 0.0]
+  limits: {lower: null, upper: null, velocity: null, acceleration: null, effort: null}
+- name: front_right_joint_2
+  type: revolute
+  parent: front_right_1
+  child: front_right_2
+  origin:
+    xyz: [0.0, 0.0, 0.0]
+    rpy: [0.0, 0.0, 0.0]
+  axis: [0.0, 1.0, 0.0]
+  limits: {lower: null, upper: null, velocity: null, acceleration: null, effort: null}
+- name: rear_left_joint_0
+  type: revolute
+  parent: body
+  child: rear_left_0
+  origin:
+    xyz: [0.0, 0.0, 0.0]
+    rpy: [0.0, 0.0, 0.0]
+  axis: [0.0, 1.0, 0.0]
+  limits: {lower: null, upper: null, velocity: null, acceleration: null, effort: null}
+- name: rear_left_joint_1
+  type: revolute
+  parent: rear_left_0
+  child: rear_left_1
+  origin:
+    xyz: [0.0, 0.0, 0.0]
+    rpy: [0.0, 0.0, 0.0]
+  axis: [0.0, 1.0, 0.0]
+  limits: {lower: null, upper: null, velocity: null, acceleration: null, effort: null}
+- name: rear_left_joint_2
+  type: revolute
+  parent: rear_left_1
+  child: rear_left_2
+  origin:
+    xyz: [0.0, 0.0, 0.0]
+    rpy: [0.0, 0.0, 0.0]
+  axis: [0.0, 1.0, 0.0]
+  limits: {lower: null, upper: null, velocity: null, acceleration: null, effort: null}
+- name: rear_right_joint_0
+  type: revolute
+  parent: body
+  child: rear_right_0
+  origin:
+    xyz: [0.0, 0.0, 0.0]
+    rpy: [0.0, 0.0, 0.0]
+  axis: [0.0, 1.0, 0.0]
+  limits: {lower: null, upper: null, velocity: null, acceleration: null, effort: null}
+- name: rear_right_joint_1
+  type: revolute
+  parent: rear_right_0
+  child: rear_right_1
+  origin:
+    xyz: [0.0, 0.0, 0.0]
+    rpy: [0.0, 0.0, 0.0]
+  axis: [0.0, 1.0, 0.0]
+  limits: {lower: null, upper: null, velocity: null, acceleration: null, effort: null}
+- name: rear_right_joint_2
+  type: revolute
+  parent: rear_right_1
+  child: rear_right_2
+  origin:
+    xyz: [0.0, 0.0, 0.0]
+    rpy: [0.0, 0.0, 0.0]
+  axis: [0.0, 1.0, 0.0]
+  limits: {lower: null, upper: null, velocity: null, acceleration: null, effort: null}
+end_effectors: {front_left_foot: front_left_2, front_right_foot: front_right_2, rear_left_foot: rear_left_2,
+  rear_right_foot: rear_right_2}

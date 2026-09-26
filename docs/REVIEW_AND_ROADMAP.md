@@ -1,7 +1,33 @@
 # Review of the robot design bench
 
-Review date: 2026-09-19. This review covers source, headless tests, KDL and
-MuJoCo execution. It does not claim a new Gazebo or physical robot test.
+Updated: 2026-09-26. The initial 2026-09-19 findings below cover serial-arm
+source, headless tests, KDL and MuJoCo execution. The subsequent general pipeline
+also has live Humble MoveIt, direct joint-action and perception evidence described
+in the linked guides. No physical robot validation is claimed.
+
+## General pipeline delivered
+
+The workspace now provides a strict general robot tree, STL/material physical
+properties, shared URDF/MJCF export, optional MoveIt planning, direct simulation
+without MoveIt, trajectory storage/replay, static worlds, RGB-D/cloud/OctoMap
+integration, and reference comparison reports. UR5e, fixed 1-DOF dog and floating
+12-DOF dog profiles have runnable examples in [the run guide](RUN_ROBOTS.md).
+Coding-agent instructions and workspace skills describe extension ownership and
+test selection. [The stage reports](PIPELINE_WORKFLOW.md) document evidence scope.
+
+Remaining general-pipeline work is specific:
+
+- Add independently acquired, calibrated motion traces for hardware comparisons.
+  The UR5e catalogue currently supplies manufacturer parameters and analytical FK.
+- Replace approximate collision primitives with validated CAD when physical
+  clearance matters, and identify actuator/friction/contact parameters.
+- Add balance, gait and contact-aware task acceptance for legged robots. The dog1
+  fixture is fixed; the dog12 contact test intentionally fails generic trajectory
+  acceptance rather than claiming locomotion.
+- Supply live object-pose tracking before enabling dynamic planning environments.
+  Current world objects are static.
+- Integrate selected SLAM and learned perception/control implementations through
+  the existing plugin interfaces. Interfaces do not constitute trained algorithms.
 
 ## Findings addressed
 
@@ -44,9 +70,10 @@ third-party URDF importer is equivalent.
 5. **Acceptance scope.** A short motion test can pass while its RMS torque exceeds
    a continuous rating; that condition is reported separately. Test duration,
    winding temperature, controller gains and task tolerances must match the job.
-6. **General robot design.** The YAML, IK, spec targets and dashboard are serial
-   arm tools. External MJCF trees can be smoke-tested today; general body-tree
-   editing, task scoring, standing/walking and humanoid balance are future work.
+6. **General robot design UI.** The legacy editor, IK and dashboard remain serial
+   arm tools. General body trees are configured in the separate pipeline YAML;
+   a general tree editor, contact-aware task scoring and whole-body balance remain
+   extensions to that working pipeline.
 
 See [the workflow](ROBOT_TESTING.md) for commands, units, input conventions,
 pass criteria and the staged extension plan.

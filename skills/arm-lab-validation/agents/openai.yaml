@@ -1,0 +1,4 @@
+interface:
+  display_name: "Arm Lab Validation"
+  short_description: "Run robot physics, ROS and benchmark validation"
+  default_prompt: "Use $arm-lab-validation to test the changed robot pipeline and report the evidence and limitations."

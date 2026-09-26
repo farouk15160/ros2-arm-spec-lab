@@ -236,6 +236,561 @@ Read the YAML and expand it into a fully derived model.
 def load_config(path: str | None=None, ee_mass: float | None=None, payload_mass: float | None=None, gravity: float | None=None) -> ArmConfig: ...
 ```
 
+## project_config
+
+[Source](../src/arm_lab_model/arm_lab_model/project_config.py)
+
+### ProjectConfig
+
+Immutable declaration; loading never starts a runtime or writes assets.
+
+| Field | Type | Declared default |
+|---|---|---|
+| `source_path` | `Path` | `required` |
+| `files` | `Mapping` | `required` |
+| `sections` | `Mapping` | `required` |
+| `robot_name` | `str` | `required` |
+| `joint_names` | `tuple[str, ...]` | `required` |
+| `base_dof` | `int` | `required` |
+| `legacy_source` | `Path &#124; None` | `required` |
+| `missing_parameters` | `tuple[str, ...]` | `()` |
+
+### load_project
+
+Load component paths relative to the file that declares them.
+
+```python
+def load_project(path: str | Path) -> ProjectConfig: ...
+```
+
+### project_summary
+
+Describe validation evidence without implying physics or runtime readiness.
+
+```python
+def project_summary(project: ProjectConfig) -> dict: ...
+```
+
+### main
+
+```python
+def main(argv=None) -> int: ...
+```
+
+## robot_topology
+
+[Source](../src/arm_lab_model/arm_lab_model/robot_topology.py)
+
+### validate_robot
+
+Return joint names, base velocity DOF and explicit missing physical inputs.
+
+```python
+def validate_robot(robot): ...
+```
+
+## mesh_physics
+
+[Source](../src/arm_lab_model/arm_lab_model/mesh_physics.py)
+
+### finite_vector
+
+```python
+def finite_vector(value, size=3, name='vector'): ...
+```
+
+### positive
+
+```python
+def positive(value, name): ...
+```
+
+### rotation
+
+```python
+def rotation(rpy): ...
+```
+
+### transform
+
+```python
+def transform(origin=None): ...
+```
+
+### tensor6
+
+```python
+def tensor6(matrix): ...
+```
+
+### tensor_matrix
+
+```python
+def tensor_matrix(values): ...
+```
+
+### mesh_scale
+
+```python
+def mesh_scale(geometry): ...
+```
+
+### read_stl
+
+Read binary or ASCII STL without treating its facet normals as authoritative.
+
+```python
+def read_stl(path): ...
+```
+
+### geometry_properties
+
+Exact homogeneous solid integrals; STL must be closed, oriented, non-intersecting.
+
+```python
+def geometry_properties(geometry, density): ...
+```
+
+## physical_robot
+
+[Source](../src/arm_lab_model/arm_lab_model/physical_robot.py)
+
+### plain
+
+Copy immutable configuration recursively; never change caller data.
+
+```python
+def plain(value): ...
+```
+
+### validate_inertial
+
+```python
+def validate_inertial(data, name): ...
+```
+
+### resolve_robot
+
+Return fully specified physical tree; no synthetic replacement for unknown data.
+
+```python
+def resolve_robot(project): ...
+```
+
+### robot_fingerprint
+
+Stable content identity, including referenced mesh bytes and full inertials.
+
+```python
+def robot_fingerprint(robot): ...
+```
+
+### forward_tree
+
+World transforms and joint axes; floating base defaults to configured pose.
+
+```python
+def forward_tree(robot, q=None): ...
+```
+
+### physical_report
+
+Mass properties and actuator effort required to hold q against gravity.
+
+```python
+def physical_report(robot, q=None, gravity=(0, 0, -9.81), payload=None): ...
+```
+
+## robot_legacy
+
+[Source](../src/arm_lab_model/arm_lab_model/robot_legacy.py)
+
+### legacy_robot
+
+```python
+def legacy_robot(path): ...
+```
+
+## robot_export
+
+[Source](../src/arm_lab_model/arm_lab_model/robot_export.py)
+
+### build_robot_urdf
+
+Fixed robots mount to world; floating robots keep their physical root link.
+
+```python
+def build_robot_urdf(robot, ros2_control=False, hardware_plugin='mock_components/GenericSystem', controllers_file=None, sensors=()): ...
+```
+
+### build_robot_mjcf
+
+Explicit full inertia and unit-gear effort actuators; no density inference.
+
+```python
+def build_robot_mjcf(robot, simulation=None, environment=(), sensors=()): ...
+```
+
+## pipeline_options
+
+[Source](../src/arm_lab_model/arm_lab_model/pipeline_options.py)
+
+### enabled_component
+
+```python
+def enabled_component(data, name, required=(), optional=()): ...
+```
+
+### validate_moveit
+
+```python
+def validate_moveit(data): ...
+```
+
+### validate_benchmark
+
+```python
+def validate_benchmark(data): ...
+```
+
+### validate_trajectories
+
+```python
+def validate_trajectories(data): ...
+```
+
+## pipeline_runtime
+
+[Source](../src/arm_lab_model/arm_lab_model/pipeline_runtime.py)
+
+### RobotSimulation
+
+Torque-limited joint servo; floating robots require external balance policies.
+
+```python
+def __init__(self, robot, simulation=None, environment=(), sensors=()): ...
+@property
+def time(self): ...
+def set_state(self, positions): ...
+def command(self, names, points, acceleration_limits=None, start_tolerance=0.05): ...
+def desired(self): ...
+def hold(self): ...
+def apply_control(self): ...
+def step(self): ...
+def endpoint(self, end_effector=None): ...
+def sample(self, end_effector=None): ...
+```
+
+### run_trajectory
+
+Execute from the current state; return simulation evidence and saveable record.
+
+```python
+def run_trajectory(sim, points, *, scenario_id, acceleration_limits=None, max_error=0.05, end_effector=None): ...
+```
+
+## pipeline_cli
+
+[Source](../src/arm_lab_model/arm_lab_model/pipeline_cli.py)
+
+### build_project
+
+Write inspectable models/configs from one physical tree; never launches ROS.
+
+```python
+def build_project(path, directory): ...
+```
+
+### prepare_benchmark
+
+Validate static benchmark inputs before motion; usable at ROS startup.
+
+```python
+def prepare_benchmark(project, *, reference=None, robot=None, expected=None): ...
+```
+
+### benchmark_execution
+
+Always emit an explicit unavailable report when no matching real trace exists.
+
+```python
+def benchmark_execution(project, observation, directory, *, reference=None, robot=None, reference_data=None): ...
+```
+
+### execute_project
+
+```python
+def execute_project(path, scenario, directory, *, reference=None, benchmark=False, benchmark_robot=None, replay=None, save=False): ...
+```
+
+### main
+
+```python
+def main(argv=None): ...
+```
+
+## joint_trajectory
+
+[Source](../src/arm_lab_model/arm_lab_model/joint_trajectory.py)
+
+### JointPath
+
+| Field | Type | Declared default |
+|---|---|---|
+| `names` | `tuple` | `required` |
+| `times` | `tuple` | `required` |
+| `coefficients` | `tuple` | `required` |
+
+```python
+@classmethod
+def from_points(cls, names, points): ...
+@property
+def duration(self): ...
+def sample(self, time): ...
+def check_limits(self, joints, acceleration_limits=None): ...
+```
+
+## trajectory_store
+
+[Source](../src/arm_lab_model/arm_lab_model/trajectory_store.py)
+
+### joint_names
+
+```python
+def joint_names(value): ...
+```
+
+### quaternion
+
+```python
+def quaternion(value, path): ...
+```
+
+### validate_trajectory
+
+Reject incomplete, failed, nonfinite or structurally inconsistent records.
+
+```python
+def validate_trajectory(record): ...
+```
+
+### save_trajectory
+
+Save under directory/robot; never overwrite an existing trajectory.
+
+```python
+def save_trajectory(record, directory) -> Path: ...
+```
+
+### load_trajectory
+
+Load a record; optionally enforce replay robot identity and limits.
+
+```python
+def load_trajectory(path, robot=None) -> dict: ...
+```
+
+## scene_config
+
+[Source](../src/arm_lab_model/arm_lab_model/scene_config.py)
+
+### mutable
+
+Return fresh JSON-like data from an immutable project configuration.
+
+```python
+def mutable(value): ...
+```
+
+### validate_geometry
+
+SI primitive dimensions or STL path plus explicit unit scaling.
+
+```python
+def validate_geometry(geometry, path='geometry'): ...
+```
+
+### validate_environment
+
+Reject unsupported frames and under-specified dynamic bodies.
+
+```python
+def validate_environment(data): ...
+```
+
+### resolve_environment
+
+```python
+def resolve_environment(project): ...
+```
+
+### quaternion_xyzw
+
+```python
+def quaternion_xyzw(rpy): ...
+```
+
+### collision_objects
+
+Pure collision records; meshes contain scaled vertices and indexed triangles.
+
+```python
+def collision_objects(objects): ...
+```
+
+### validate_sensors
+
+```python
+def validate_sensors(data): ...
+```
+
+### resolve_sensors
+
+```python
+def resolve_sensors(project): ...
+```
+
+## sensor_runtime
+
+[Source](../src/arm_lab_model/arm_lab_model/sensor_runtime.py)
+
+### CameraRenderer
+
+Owned GL resources: create and use from one thread, call close on shutdown.
+
+```python
+def __init__(self, model, cameras, seed=0): ...
+def render(self, data, name): ...
+def close(self): ...
+```
+
+## perception
+
+[Source](../src/arm_lab_model/arm_lab_model/perception.py)
+
+### depth_to_pointcloud
+
+Unproject registered depth into optical frame (+x right, +y down, +z forward).
+
+```python
+def depth_to_pointcloud(depth, intrinsics, *, depth_scale=1.0, min_depth=0.01, max_depth=10.0): ...
+```
+
+### filter_pointcloud
+
+Transform points, crop in destination frame and retain one centroid per voxel.
+
+```python
+def filter_pointcloud(points, *, bounds=None, voxel_size=None, transform=None): ...
+```
+
+### validate_perception
+
+```python
+def validate_perception(data): ...
+```
+
+### validate_perception_dependencies
+
+```python
+def validate_perception_dependencies(project): ...
+```
+
+### moveit_octomap_config
+
+```python
+def moveit_octomap_config(data): ...
+```
+
+### load_algorithm
+
+Explicitly installed plugin callable(frame_bundle, parameters) -> result.
+
+```python
+def load_algorithm(reference): ...
+```
+
+### color_components
+
+Baseline connected color regions, not trained semantic object recognition.
+
+```python
+def color_components(rgb, parameters): ...
+```
+
+## benchmark_reference
+
+[Source](../src/arm_lab_model/arm_lab_model/benchmark_reference.py)
+
+### BenchmarkReference
+
+Catalogue declaration; datasets retain their own evidence classifications.
+
+| Field | Type | Declared default |
+|---|---|---|
+| `path` | `Path` | `required` |
+| `robot_path` | `Path` | `required` |
+| `joint_names` | `tuple[str, ...]` | `required` |
+| `data` | `Mapping` | `required` |
+
+### load_benchmark_reference
+
+Validate catalogue and all local SHA256 evidence, without starting a run.
+
+```python
+def load_benchmark_reference(path: str | Path) -> BenchmarkReference: ...
+```
+
+### check_reference_model
+
+Compare a resolved tree to independent static analytical FK cases.
+
+```python
+def check_reference_model(robot, benchmark) -> dict: ...
+```
+
+## benchmark_observations
+
+[Source](../src/arm_lab_model/arm_lab_model/benchmark_observations.py)
+
+### validate_observation
+
+```python
+def validate_observation(record): ...
+```
+
+### load_observation
+
+Load YAML or CSV using caller-declared columns and provenance.
+
+```python
+def load_observation(path, metadata=None, columns=None): ...
+```
+
+## benchmark_engine
+
+[Source](../src/arm_lab_model/arm_lab_model/benchmark_engine.py)
+
+### compare_runs
+
+Compare matching SI scenario clocks; missing requested evidence cannot pass.
+
+```python
+def compare_runs(simulation: dict, reference: dict, tolerances: dict) -> dict: ...
+```
+
+## benchmark_reports
+
+[Source](../src/arm_lab_model/arm_lab_model/benchmark_reports.py)
+
+### write_benchmark_report
+
+Write machine-readable results, Markdown and plots; return artifact paths.
+
+```python
+def write_benchmark_report(result, directory, simulation=None, reference=None): ...
+```
+
 ## kinematics
 
 [Source](../src/arm_lab_model/arm_lab_model/kinematics.py)
@@ -845,4 +1400,252 @@ def corrected_link_mass(self, tube_mass: float, lumped_mass: float) -> float: ..
 def corrected_arm_mass(self, cfg) -> float: ...
 @staticmethod
 def from_config(cfg) -> 'MassCorrection': ...
+```
+
+## pipeline_moveit
+
+[Source](../src/arm_lab_kinematics/arm_lab_kinematics/pipeline_moveit.py)
+
+### validate_moveit_options
+
+Validate component structure without resolving the robot or importing ROS.
+
+```python
+def validate_moveit_options(options): ...
+```
+
+### controller_joints
+
+Controller name to union of group joints, preserving declaration order.
+
+```python
+def controller_joints(options): ...
+```
+
+### build_moveit_config
+
+Generate MoveIt ROS parameters from unified geometry and explicit policies.
+
+```python
+def build_moveit_config(robot, options): ...
+```
+
+### write_moveit_config
+
+Export standalone artifacts for inspection and downstream launch tooling.
+
+```python
+def write_moveit_config(robot, options, directory): ...
+```
+
+## pipeline_target
+
+[Source](../src/arm_lab_kinematics/arm_lab_kinematics/pipeline_target.py)
+
+### validate_target
+
+Return finite coordinates and a unit quaternion (or unconstrained rotation).
+
+```python
+def validate_target(xyz, xyzw=None): ...
+```
+
+### PlanSession
+
+A preview does not imply execution, and only successful execution is saved.
+
+| Field | Type | Declared default |
+|---|---|---|
+| `state` | `str` | `'idle'` |
+| `trajectory` | `object` | `None` |
+| `start` | `object` | `None` |
+| `target` | `object` | `None` |
+
+```python
+@property
+def can_execute(self): ...
+@property
+def can_save(self): ...
+def planned(self, trajectory, start, target): ...
+def executing(self): ...
+def finished(self, success): ...
+```
+
+### build_goal
+
+Build the real MoveGroup action request; position-only means no orientation constraint.
+
+```python
+def build_goal(group_name, group, options, frame, xyz, xyzw=None): ...
+```
+
+### trajectory_message_digest
+
+Canonical digest used to associate a bridge benchmark with one exact plan.
+
+```python
+def trajectory_message_digest(trajectory): ...
+```
+
+### create_node
+
+Construct the ROS adapter; no process is started by importing this module.
+
+```python
+def create_node(): ...
+```
+
+### save_session
+
+Adapter to the shared, validated trajectory storage contract.
+
+```python
+def save_session(session, robot, options, project, fingerprint, benchmark=None, *, scenario_id='ros_execution'): ...
+```
+
+### quaternion_from_rpy
+
+Fixed-axis roll, pitch, yaw in radians -> xyzw quaternion.
+
+```python
+def quaternion_from_rpy(rpy): ...
+```
+
+### publish_target
+
+Publish either xyz or xyz/rpy without forcing a position target orientation.
+
+```python
+def publish_target(args): ...
+```
+
+### cli_main
+
+```python
+def cli_main(): ...
+```
+
+### main
+
+```python
+def main(args=None): ...
+```
+
+## pipeline_scene
+
+[Source](../src/arm_lab_gui/arm_lab_gui/pipeline_scene.py)
+
+### collision_message
+
+```python
+def collision_message(record): ...
+```
+
+### environment_marker
+
+```python
+def environment_marker(obj, record, index): ...
+```
+
+### PipelineScene
+
+```python
+def __init__(self): ...
+def apply(self): ...
+```
+
+### main
+
+```python
+def main(args=None): ...
+```
+
+## pipeline_perception
+
+[Source](../src/arm_lab_gui/arm_lab_gui/pipeline_perception.py)
+
+### image_array
+
+Respect ROS Image encoding, byte order and padded row stride.
+
+```python
+def image_array(message): ...
+```
+
+### transform_matrix
+
+```python
+def transform_matrix(transform): ...
+```
+
+### PipelinePerception
+
+```python
+def __init__(self): ...
+def on_info(self, name, message): ...
+def on_image(self, name, stream, message): ...
+def flush_clouds(self): ...
+def publish_cloud(self, message, image, intrinsics, spec): ...
+```
+
+### main
+
+```python
+def main(args=None): ...
+```
+
+## pipeline_sim_node
+
+[Source](../src/arm_lab_gui/arm_lab_gui/pipeline_sim_node.py)
+
+### stamp
+
+```python
+def stamp(value): ...
+```
+
+### points_from_message
+
+```python
+def points_from_message(trajectory): ...
+```
+
+### trajectory_digest
+
+```python
+def trajectory_digest(message): ...
+```
+
+### configured_controllers
+
+Use the generic joint action when planning is absent or explicitly disabled.
+
+```python
+def configured_controllers(moveit, names): ...
+```
+
+### ExecutionViolation
+
+```python
+def __init__(self, code, message): ...
+```
+
+### PipelineSimulationNode
+
+```python
+def __init__(self): ...
+def param(self, name): ...
+def request_policy(self, request): ...
+def accept_goal(self, goal, allowed=None): ...
+def execute(self, goal): ...
+def publish(self): ...
+def publish_cameras(self): ...
+def check_execution_sample(self): ...
+def run(self): ...
+```
+
+### main
+
+```python
+def main(argv=None): ...
 ```

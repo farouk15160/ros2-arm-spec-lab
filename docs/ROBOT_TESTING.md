@@ -1,8 +1,9 @@
 # Robot design and testing workflow
 
-This project has two scopes: a parameter-driven **fixed-base serial arm design
-bench**, and a **generic MuJoCo model smoke tester**. The second accepts other
-robot types; it does not make the arm sizing, IK, dashboard or controller generic.
+This project combines the original **fixed-base serial arm design bench**, a
+**generic external-MJCF smoke tester**, and the [general project pipeline](PIPELINE_WORKFLOW.md).
+The pipeline supports branched physical models, MoveIt, sensors and reference
+comparisons; the old sizing tools, arm IK and dashboard remain arm-specific.
 
 ## Choose an engine
 
@@ -125,6 +126,24 @@ losses, supply limits and regeneration separately.
 
 ## Quadrupeds, humanoids and other robots
 
+To validate a new 12-DOF dog-style **configuration** (no simulation):
+
+```bash
+PYTHONPATH=src/arm_lab_model python3 -m arm_lab_model.project_config \
+  src/arm_lab_model/config/pipeline/project_quadruped_12dof.yaml
+```
+
+The example has four three-joint branches and a floating base. Its unknown
+inertials and joint limits are listed as missing; the zero origin transforms
+are explicit topology placeholders. `runtime_ready` remains false. See the
+[extended pipeline guide](EXTENDED_PIPELINE.md) for current component contracts.
+For an executable twelve-actuator floating model, use the separate
+[synthetic dog demo](DOG12_DEMO.md). Its drop test checks contacts and finite state,
+not successful standing or locomotion. The [UR5e workflow](PIPELINE_WORKFLOW.md)
+checks nominal FK and controlled arm motion, and produces an explicitly incomplete
+benchmark when no measured reference is configured. The eight-joint external MJCF
+fixture below is a separate, existing numerical smoke test.
+
 ```bash
 robot_test smoke examples/quadruped_drop.xml --duration 2 -o quadruped-drop.json
 robot_test smoke /path/to/humanoid.xml --keyframe home --duration 2 -o humanoid-smoke.json
@@ -137,25 +156,11 @@ state. Falling over can still pass. Controls are zero unless a keyframe supplies
 constant controls. There is no gait, balance policy, task score or motor sizing
 report for these external models yet.
 
-General robot design support is a substantial extension, but it need not be a
-rewrite. Follow these stages:
-
-1. Introduce a versioned body/joint tree with explicit parents, fixed/free base,
-   mesh/primitive geometry and named end effectors. Preserve the arm YAML via
-   an adapter and test equivalent exports before changing the dashboard.
-2. Add model-independent test scenarios and recording: trajectories, external
-   loads, contact surfaces, initial states, actuator commands and acceptance
-   limits. Add controller callbacks/ROS adapters for external MJCF models.
-3. Add floating-base reports: total CoM, foot contact forces, slip, support
-   polygon/CoP where applicable, falling, energy and actuator duty cycles.
-4. Add quadruped standing and stepping controllers, then uneven-terrain tests.
-   Humanoids add whole-body balance, foot transitions, self-collision and fall
-   handling; a robot-specific controller is essential.
-
-The reusable work is the model inputs, actuator/thermal models, exporter,
-scenario runner and reports. The expensive work is calibrated contact and
-successful locomotion, especially humanoid balance. Changing the project name
-or adding more joints cannot supply those capabilities.
+The general tree, physical resolution, unified exporters, scenario observations,
+trajectory storage and benchmark reports now provide reusable non-arm seams.
+Remaining locomotion work includes contact-aware success policies, support/slip
+metrics, calibrated contacts, standing/stepping controllers and whole-body balance.
+A robot-specific controller remains essential for useful quadruped/humanoid tasks.
 
 ## What simulation can establish
 

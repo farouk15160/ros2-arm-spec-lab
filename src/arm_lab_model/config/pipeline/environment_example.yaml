@@ -1,0 +1,25 @@
+# SI metres/radians. Mesh objects additionally require units: m or mm.
+schema_version: 1
+enabled: true
+objects:
+  - name: workbench
+    geometry:
+      type: box
+      size: [1.2, 0.8, 0.08]
+    pose:
+      xyz: [0.9, 0.0, 0.35]
+      rpy: [0.0, 0.0, 0.0]
+    frame: world
+    static: true
+    mass: null
+  - name: fixture
+    geometry:
+      type: cylinder
+      radius: 0.06
+      length: 0.15
+    pose:
+      xyz: [0.9, 0.0, 0.465]
+      rpy: [0.0, 0.0, 0.0]
+    frame: world
+    static: true
+    mass: null

@@ -12,6 +12,7 @@
   <license>Apache-2.0</license>
 
   <depend>arm_lab_model</depend>
+  <depend>arm_lab_kinematics</depend>
   <depend>rclpy</depend>
   <depend>sensor_msgs</depend>
   <depend>std_msgs</depend>
@@ -24,6 +25,11 @@
   <exec_depend>control_msgs</exec_depend>
   <exec_depend>rosgraph_msgs</exec_depend>
   <exec_depend>visualization_msgs</exec_depend>
+  <exec_depend>moveit_msgs</exec_depend>
+  <exec_depend>shape_msgs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>sensor_msgs_py</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
 
   <test_depend>python3-pytest</test_depend>
 

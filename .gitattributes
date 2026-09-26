@@ -1,0 +1,2 @@
+# Keep the checksum-pinned upstream source verbatim, including its indentation.
+src/arm_lab_model/config/benchmarks/upstream/ur5e/ur_macro.xacro whitespace=-space-before-tab

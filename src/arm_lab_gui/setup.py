@@ -24,6 +24,9 @@ setup(
             'capability_node = arm_lab_gui.capability_node:main',
             'speed_test = arm_lab_gui.speed_test:main',
             'mujoco_sim = arm_lab_gui.mujoco_sim_node:main',
+            'pipeline_sim = arm_lab_gui.pipeline_sim_node:main',
+            'pipeline_perception = arm_lab_gui.pipeline_perception:main',
+            'pipeline_scene = arm_lab_gui.pipeline_scene:main',
         ],
     },
 )

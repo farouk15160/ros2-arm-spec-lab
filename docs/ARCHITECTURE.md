@@ -129,11 +129,24 @@ configuration and joint state supplied to calculations that reuse it.
 
 ## Architectural limits and extension points
 
-The arm aggregate stores an ordered chain, one pedestal and one end effector.
-Joint parentage is implicit in list order. A generic robot editor needs explicit
-body/joint parent relationships, a floating base and multiple end effectors.
-The external MJCF smoke runner is the current extension point for other robot
-types; it deliberately does not reinterpret them as a serial arm.
+The [general pipeline](EXTENDED_PIPELINE.md) uses immutable `ProjectConfig`
+composition and explicit body/joint trees. `physical_robot.resolve_robot` derives
+STL/material inertials or preserves complete manual values; `robot_export` writes
+URDF and MJCF from the same resolved tree. `robot_legacy` adapts existing arm YAML
+without changing the old `ArmModel`'s ordered-chain assumptions.
+
+`pipeline_runtime` executes named trajectories and records simulation observations.
+`pipeline_moveit` derives group/controller settings; `pipeline.launch.py` composes
+robot description, MoveIt, the MuJoCo trajectory action server, RViz, world and
+perception nodes. `trajectory_store` owns persistent records; `benchmark_engine`
+compares compatible observations and `benchmark_reports` renders evidence-labeled
+artifacts. See [the integrated workflow](PIPELINE_WORKFLOW.md).
+
+Fixed/floating bases, multiple branches and end effectors are supported in this
+pipeline. Floating-base contact simulation does not provide locomotion control.
+The arm editor and engineering sizing reports retain serial-arm assumptions.
+SLAM, semantic recognition and learned policies require external algorithms;
+perception supplies integration boundaries and a simple color-region baseline.
 
 The native exporter and analytical dynamics share physical input values. Their
 agreement tests equation implementation and model conversion, not independence

@@ -31,6 +31,8 @@ setup(
             'pick_place = arm_lab_kinematics.pick_place:main',
             'cartesian_move = arm_lab_kinematics.cartesian_node:main',
             'workspace_markers = arm_lab_kinematics.workspace_markers:main',
+            'pipeline_target = arm_lab_kinematics.pipeline_target:main',
+            'pipeline_target_cli = arm_lab_kinematics.pipeline_target:cli_main',
         ],
     },
 )

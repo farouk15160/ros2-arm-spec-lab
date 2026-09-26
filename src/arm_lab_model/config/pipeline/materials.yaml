@@ -1,0 +1,3 @@
+# Empty until the user supplies materials with density and provenance.
+schema_version: 1
+materials: {}

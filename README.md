@@ -1,8 +1,10 @@
-# Robot Design Lab — arm design, physics checks and simulation
+# Robot Design Lab — robot modeling, simulation and benchmarking
 
-A parameter-driven robot arm design bench with ROS 2 Jazzy, Gazebo Harmonic and
-an optional, headless MuJoCo workflow. Enter geometry, measured mass properties
-and actuator data, then check loads and simulate motion before building.
+A configurable robot modeling and analysis workspace with headless MuJoCo,
+ROS 2/MoveIt/RViz integration, reference comparisons and a legacy serial-arm
+design bench. Enter geometry, measured mass properties and actuator data, then
+check loads and simulate motion before building. The unified pipeline has been
+tested on ROS 2 Humble; the original Gazebo workflow targets Jazzy/Harmonic.
 
 You describe the arm in a single YAML file — link lengths, tube diameters and
 wall thicknesses, materials, actuators and gear ratios, end-effector mass — and
@@ -10,9 +12,21 @@ the workspace generates the URDF, the Gazebo model, the ros2_control setup, a
 live dashboard and a written spec report from it. Change a number, relaunch,
 see what it costs you.
 
-**Current scope:** fixed-base serial rotary arms for design/analysis, plus
-generic MJCF smoke testing for other robot types. Quadruped and humanoid
-walking controllers and a general robot design editor are not implemented.
+**Current scope:** serial-arm design and analysis plus a general robot pipeline
+for STL/material or manual physical properties, unified URDF/MuJoCo models,
+MoveIt/RViz planning, simulation, trajectory storage/replay, configurable worlds,
+cameras, perception adapters and reference comparison reports. Start with the
+[pipeline workflow](docs/PIPELINE_WORKFLOW.md) and
+[configuration architecture](docs/EXTENDED_PIPELINE.md).
+For copy-and-run commands for the original arm, UR5e, the new literal 1-DOF dog
+and the existing 12-DOF dog, use [Run different robots](docs/RUN_ROBOTS.md).
+Future coding agents should start with [AGENTS.md](AGENTS.md), which routes edits
+and tests through the workspace modeling and validation skills in `skills/`.
+The [UR5e reference](docs/UR5E_REFERENCE.md) includes published nominal kinematics;
+no real-robot motion recordings are bundled. A
+[synthetic 12-DOF dog](docs/DOG12_DEMO.md) demonstrates floating-base contacts,
+without gait or balance control. The integrated MoveIt path was exercised on
+ROS 2 Humble; the original arm/Gazebo workflow remains available separately.
 Start with the [complete documentation](docs/README.md):
 [getting started](docs/GETTING_STARTED.md),
 [system architecture](docs/ARCHITECTURE.md),
@@ -63,7 +77,7 @@ src/
 ## Build
 
 ```bash
-cd ros2_robot_arm_calc_
+cd ros2-arm-spec-lab
 source /opt/ros/jazzy/setup.bash
 colcon build --symlink-install
 source install/setup.bash
@@ -130,8 +144,11 @@ Differences from Gazebo worth knowing:
 
 ## The config file
 
-`src/arm_lab_model/config/arm_config.yaml` is the only file you edit. Copy it,
-change it, pass it with `config_file:=`.
+`src/arm_lab_model/config/arm_config.yaml` remains the input for the current arm
+runtime. Copy it, change it, pass it with `config_file:=`. The separate
+`config/pipeline/project.yaml` composes the general robot pipeline. Validate
+it with `project_check`, then use `robot_pipeline` or `pipeline.launch.py` with
+`project_file:=`. Do not pass a project manifest to legacy arm-only commands.
 
 Each entry in `joints:` carries its own actuator and its own hollow-tube link:
 
@@ -688,8 +705,10 @@ ros2 run arm_lab_kinematics moveit_gen -o moveit_config
 ```
 
 Writes SRDF, `kinematics.yaml`, `joint_limits.yaml`, `moveit_controllers.yaml`
-and `ompl_planning.yaml`. Pair it with the URDF from `urdf_gen`. Generated and
-schema-checked, but **not** run through `move_group` here.
+and `ompl_planning.yaml`. Pair it with the URDF from `urdf_gen`. This is the
+legacy arm generator. The separate [unified pipeline](docs/PIPELINE_PLANNING.md)
+generates from the resolved robot tree and has been exercised through actual
+ROS 2 Humble `move_group`, preview, simulation execution and trajectory saving.
 
 ---
 

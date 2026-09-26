@@ -1,0 +1,9 @@
+schema_version: 1
+robot: robot_ur5e.yaml
+simulation: simulation_ur5e.yaml
+moveit: moveit_ur5e.yaml
+environment: environment.yaml
+sensors: sensors.yaml
+perception: perception.yaml
+benchmark: benchmark_ur5e.yaml
+trajectories: trajectories_enabled.yaml

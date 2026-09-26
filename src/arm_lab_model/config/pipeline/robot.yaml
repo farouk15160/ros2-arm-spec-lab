@@ -1,0 +1,3 @@
+schema_version: 1
+format: legacy_arm
+source: ../arm_config.yaml

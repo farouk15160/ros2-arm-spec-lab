@@ -1,0 +1,244 @@
+schema_version: 1
+robot:
+  name: ur5e
+  model: UR5e
+  manufacturer: Universal Robots
+  description: Six-axis e-Series arm, nominal uncalibrated manufacturer reference.
+robot_description: ../pipeline/robot_ur5e.yaml
+joint_names:
+- shoulder_pan_joint
+- shoulder_lift_joint
+- elbow_joint
+- wrist_1_joint
+- wrist_2_joint
+- wrist_3_joint
+joint_limits:
+  shoulder_pan_joint:
+    position_rad:
+    - -6.283185307179586
+    - 6.283185307179586
+    velocity_rad_s: 3.141592653589793
+    acceleration_rad_s2: null
+    continuous_torque_nm: null
+    model_effort_nm: 150.0
+    planning_position_rad:
+    - -6.283185307179586
+    - 6.283185307179586
+    source: ur_description
+    notes: Position/speed corroborated by ur_manual; effort is ROS model limit, not
+      guaranteed continuous torque. Elbow planning range intentionally narrower than
+      hardware.
+  shoulder_lift_joint:
+    position_rad:
+    - -6.283185307179586
+    - 6.283185307179586
+    velocity_rad_s: 3.141592653589793
+    acceleration_rad_s2: null
+    continuous_torque_nm: null
+    model_effort_nm: 150.0
+    planning_position_rad:
+    - -6.283185307179586
+    - 6.283185307179586
+    source: ur_description
+    notes: Position/speed corroborated by ur_manual; effort is ROS model limit, not
+      guaranteed continuous torque. Elbow planning range intentionally narrower than
+      hardware.
+  elbow_joint:
+    position_rad:
+    - -6.283185307179586
+    - 6.283185307179586
+    velocity_rad_s: 3.141592653589793
+    acceleration_rad_s2: null
+    continuous_torque_nm: null
+    model_effort_nm: 150.0
+    planning_position_rad:
+    - -3.141592653589793
+    - 3.141592653589793
+    source: ur_description
+    notes: Position/speed corroborated by ur_manual; effort is ROS model limit, not
+      guaranteed continuous torque. Elbow planning range intentionally narrower than
+      hardware.
+  wrist_1_joint:
+    position_rad:
+    - -6.283185307179586
+    - 6.283185307179586
+    velocity_rad_s: 3.141592653589793
+    acceleration_rad_s2: null
+    continuous_torque_nm: null
+    model_effort_nm: 28.0
+    planning_position_rad:
+    - -6.283185307179586
+    - 6.283185307179586
+    source: ur_description
+    notes: Position/speed corroborated by ur_manual; effort is ROS model limit, not
+      guaranteed continuous torque. Elbow planning range intentionally narrower than
+      hardware.
+  wrist_2_joint:
+    position_rad:
+    - -6.283185307179586
+    - 6.283185307179586
+    velocity_rad_s: 3.141592653589793
+    acceleration_rad_s2: null
+    continuous_torque_nm: null
+    model_effort_nm: 28.0
+    planning_position_rad:
+    - -6.283185307179586
+    - 6.283185307179586
+    source: ur_description
+    notes: Position/speed corroborated by ur_manual; effort is ROS model limit, not
+      guaranteed continuous torque. Elbow planning range intentionally narrower than
+      hardware.
+  wrist_3_joint:
+    position_rad:
+    - -6.283185307179586
+    - 6.283185307179586
+    velocity_rad_s: 3.141592653589793
+    acceleration_rad_s2: null
+    continuous_torque_nm: null
+    model_effort_nm: 28.0
+    planning_position_rad:
+    - -6.283185307179586
+    - 6.283185307179586
+    source: ur_description
+    notes: Position/speed corroborated by ur_manual; effort is ROS model limit, not
+      guaranteed continuous torque. Elbow planning range intentionally narrower than
+      hardware.
+payload:
+  maximum_mass_kg: 5.0
+  source: ur_manual
+  com_envelope: null
+  inertia_envelope: null
+  notes: Payload includes attached tool. Installation payload CoM/inertia must be
+    supplied; this is not a blanket dynamic rating.
+kinematics:
+  convention: standard_dh
+  source: ur_dh
+  base_frame: base
+  tcp_frame: tool0
+  rows:
+  - a_m: 0.0
+    d_m: 0.1625
+    alpha_rad: 1.5707963267948966
+    theta_offset_rad: 0.0
+  - a_m: -0.425
+    d_m: 0.0
+    alpha_rad: 0.0
+    theta_offset_rad: 0.0
+  - a_m: -0.3922
+    d_m: 0.0
+    alpha_rad: 0.0
+    theta_offset_rad: 0.0
+  - a_m: 0.0
+    d_m: 0.1333
+    alpha_rad: 1.5707963267948966
+    theta_offset_rad: 0.0
+  - a_m: 0.0
+    d_m: 0.0997
+    alpha_rad: -1.5707963267948966
+    theta_offset_rad: 0.0
+  - a_m: 0.0
+    d_m: 0.0996
+    alpha_rad: 0.0
+    theta_offset_rad: 0.0
+  calibration: null
+physical_properties:
+  source: ur_description
+  robot_description: ../pipeline/robot_ur5e.yaml
+  mass_kg_reference: 20.7
+  mass_kg_model: 21.7
+  inertia_order:
+  - ixx
+  - iyy
+  - izz
+  - ixy
+  - ixz
+  - iyz
+  inertia_units: kg*m^2
+  com_units: m
+  notes: Per-link masses, COM and tensors are authoritative in robot_description,
+    not duplicated. Model sum 21.7 kg differs from manual 20.7 kg. Upstream base mass
+    4 kg is explicitly uncertain.
+sources:
+  ur_description:
+    kind: manufacturer_reference
+    url: https://github.com/UniversalRobots/Universal_Robots_ROS2_Description/blob/b48aa88ac18a17466e767929f05f45b23e332a8e/
+    revision: b48aa88ac18a17466e767929f05f45b23e332a8e
+    license: BSD-3-Clause; retained upstream LICENSE and copyright headers
+    retrieved: '2026-09-25'
+    files:
+    - path: upstream/ur5e/LICENSE
+      sha256: 143077f9f6a8de5a99f78c2c2472801fb53cf240277ef661642f079b9acdfff8
+    - path: upstream/ur5e/default_kinematics.yaml
+      sha256: 4ffc6086bb0118a5a8e4a3576ef41de878de946710799ea4835789063fa9c0bc
+    - path: upstream/ur5e/joint_limits.yaml
+      sha256: 1e908454a0fb073761a0c675f708eb003ca7d5333a9e0863ef87fe40d9abb3c7
+    - path: upstream/ur5e/physical_parameters.yaml
+      sha256: 79ea65367aa306015bf2e91b60b1edf7d1a7a6309671b8051a8d419675ca93ae
+    - path: upstream/ur5e/ur_common.xacro
+      sha256: 6f01bf71dc8073b5cd7458c12ed39d87eb99ffec7d6bb31d534d96f83c534304
+    - path: upstream/ur5e/ur_macro.xacro
+      sha256: e5ef4dd07523e5832fd34ca564e882a3980a95845ee4af3f3690e418d6c3ce98
+  ur_manual:
+    kind: manufacturer_reference
+    url: https://www.universal-robots.com/manuals/EN/HTML/SW5_20/Content/prod-usr-man/complianceUR5e/H_g5_sections/appendix_g5/tech_spec_sheet.htm
+    revision: PolyScope SW5.20 online manual
+    license: Manufacturer published facts; full manual not redistributed
+    retrieved: '2026-09-25'
+    files: []
+  ur_dh:
+    kind: manufacturer_reference
+    url: https://www.universal-robots.com/articles/ur/application-installation/dh-parameters-for-calculations-of-kinematics-and-dynamics/
+    revision: null
+    license: Manufacturer published numerical parameters; article not redistributed
+    retrieved: '2026-09-25'
+    files: []
+datasets:
+  nominal_fk:
+    kind: analytical_reference
+    source: ur_dh
+    file: datasets/ur5e_nominal_fk.yaml
+    sha256: 71345ffecccce3756361ecbe7f5e67aae4a874281c96e8a12781e722340ef1f7
+    format: static_fk_cases_v1
+    scenario: nominal_kinematics
+    joint_names:
+    - shoulder_pan_joint
+    - shoulder_lift_joint
+    - elbow_joint
+    - wrist_1_joint
+    - wrist_2_joint
+    - wrist_3_joint
+    channels:
+      joint_position:
+        unit: rad
+        frame: null
+        uncertainty: null
+      tcp_position:
+        unit: m
+        frame: base
+        uncertainty: null
+      tcp_orientation:
+        unit: quaternion_xyzw
+        frame: base
+        uncertainty: null
+    conditions:
+      calibration: nominal manufacturer DH; no per-robot calibration
+      controller: null
+      payload: null
+      gravity: null
+      timestamp_convention: untimed static configurations
+      acquisition: Analytical product of six standard DH transforms; not hardware
+        acquisition
+    description: Five independent nominal FK configurations. No trajectory timing
+      or hardware measurements are implied.
+limitations:
+- No measured real-robot trajectory dataset bundled; hardware agreement cannot be
+  claimed.
+- Nominal kinematics lack per-robot calibration.
+- Joint acceleration and guaranteed continuous torque limits unavailable.
+- Inertials are upstream model values, not independently measured on this robot.
+- Primitive collision geometry approximates envelopes and cannot establish hardware
+  collision clearance.
+- The manufacturer DH page approximates UR5e inertia as negligible; nonzero tensors
+  here use ROS model estimates instead.
+- Payload CoM, inertia, friction, motor/gear losses and controller settings require
+  run-specific data.

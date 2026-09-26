@@ -1,0 +1,101 @@
+schema_version: 1
+robot: ur5e
+frame: base
+tcp_frame: tool0
+joint_names:
+- shoulder_pan_joint
+- shoulder_lift_joint
+- elbow_joint
+- wrist_1_joint
+- wrist_2_joint
+- wrist_3_joint
+evidence:
+  kind: analytical
+  source: Manufacturer standard DH table; evaluated matrix product Rz(theta)Tz(d)Tx(a)Rx(alpha).
+    Not measured robot poses.
+cases:
+- name: nominal_fk_0
+  joint_position:
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  tcp_position:
+  - -0.8171999999999999
+  - -0.2329
+  - 0.06280000000000001
+  tcp_orientation:
+  - 0.7071067811865475
+  - 0.0
+  - 0.0
+  - 0.7071067811865475
+- name: nominal_fk_1
+  joint_position:
+  - 1.5707963267948966
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  tcp_position:
+  - 0.23289999999999994
+  - -0.8171999999999999
+  - 0.06280000000000001
+  tcp_orientation:
+  - 0.5
+  - 0.5
+  - 0.5
+  - 0.5000000000000001
+- name: nominal_fk_2
+  joint_position:
+  - 0.0
+  - -1.5707963267948966
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  tcp_position:
+  - -0.09970000000000005
+  - -0.23289999999999994
+  - 0.9797
+  tcp_orientation:
+  - 0.5
+  - 0.5
+  - -0.5
+  - 0.5000000000000001
+- name: nominal_fk_3
+  joint_position:
+  - 0.0
+  - -1.5707963267948966
+  - 1.5707963267948966
+  - 0.0
+  - 1.5707963267948966
+  - 0.0
+  tcp_position:
+  - -0.4918
+  - -0.13329999999999997
+  - 0.4878
+  tcp_orientation:
+  - -0.5
+  - 0.5000000000000001
+  - 0.49999999999999994
+  - -0.5000000000000001
+- name: nominal_fk_4
+  joint_position:
+  - 0.3
+  - -0.7
+  - 1.0
+  - -0.5
+  - 0.8
+  - -0.2
+  tcp_position:
+  - -0.6944080167541274
+  - -0.4269737349222279
+  - 0.23687151300293807
+  tcp_orientation:
+  - 0.652951957913942
+  - -0.048942960637512835
+  - -0.3048192075722393
+  - 0.69162387029036

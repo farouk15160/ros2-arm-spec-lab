@@ -1,0 +1,92 @@
+# Exactly one actuated joint. Fixed-base synthetic fixture, not a walking robot.
+schema_version: 1
+format: tree
+name: dog1_demo
+family: quadruped_fixture
+source: SYNTHETIC one-actuator dog-shaped fixture; illustrative solid boxes, not vendor CAD or measured hardware
+base:
+  link: body
+  type: fixed
+  origin: {xyz: [0, 0, 0.5], rpy: [0, 0, 0]}
+links:
+  - name: body
+    geometry: {type: box, size: [0.5, 0.24, 0.12]}
+    material: {name: synthetic_effective_solid, density: 500, source: Illustrative homogeneous density in kg/m3}
+    inertial: {mode: auto}
+  - name: front_left_leg
+    geometry:
+      type: box
+      size: [0.04, 0.04, 0.3]
+      origin: {xyz: [0, 0, -0.15], rpy: [0, 0, 0]}
+    material: {name: synthetic_effective_solid, density: 500, source: Illustrative homogeneous density in kg/m3}
+    inertial: {mode: auto}
+  - name: front_right_leg
+    geometry:
+      type: box
+      size: [0.04, 0.04, 0.3]
+      origin: {xyz: [0, 0, -0.15], rpy: [0, 0, 0]}
+    material: {name: synthetic_effective_solid, density: 500, source: Illustrative homogeneous density in kg/m3}
+    inertial: {mode: auto}
+  - name: rear_left_leg
+    geometry:
+      type: box
+      size: [0.04, 0.04, 0.3]
+      origin: {xyz: [0, 0, -0.15], rpy: [0, 0, 0]}
+    material: {name: synthetic_effective_solid, density: 500, source: Illustrative homogeneous density in kg/m3}
+    inertial: {mode: auto}
+  - name: rear_right_leg
+    geometry:
+      type: box
+      size: [0.04, 0.04, 0.3]
+      origin: {xyz: [0, 0, -0.15], rpy: [0, 0, 0]}
+    material: {name: synthetic_effective_solid, density: 500, source: Illustrative homogeneous density in kg/m3}
+    inertial: {mode: auto}
+  - name: head
+    geometry: {type: box, size: [0.12, 0.14, 0.12]}
+    material: {name: synthetic_effective_solid, density: 500, source: Illustrative homogeneous density in kg/m3}
+    inertial: {mode: auto}
+  - name: tail
+    geometry: {type: box, size: [0.15, 0.02, 0.02]}
+    material: {name: synthetic_effective_solid, density: 500, source: Illustrative homogeneous density in kg/m3}
+    inertial: {mode: auto}
+  - name: front_left_foot
+    inertial: {mass: 0, com: [0, 0, 0], inertia: [0, 0, 0, 0, 0, 0], source: Massless foot coordinate frame}
+joints:
+  - name: front_left_hip_pitch
+    type: revolute
+    parent: body
+    child: front_left_leg
+    origin: {xyz: [0.18, 0.15, -0.06], rpy: [0, 0, 0]}
+    axis: [0, 1, 0]
+    limits: {lower: -0.6, upper: 0.6, velocity: 2.0, acceleration: 4.0, effort: 5.0}
+  - name: front_right_hip_fixed
+    type: fixed
+    parent: body
+    child: front_right_leg
+    origin: {xyz: [0.18, -0.15, -0.06], rpy: [0, 0, 0]}
+  - name: rear_left_hip_fixed
+    type: fixed
+    parent: body
+    child: rear_left_leg
+    origin: {xyz: [-0.18, 0.15, -0.06], rpy: [0, 0, 0]}
+  - name: rear_right_hip_fixed
+    type: fixed
+    parent: body
+    child: rear_right_leg
+    origin: {xyz: [-0.18, -0.15, -0.06], rpy: [0, 0, 0]}
+  - name: head_fixed
+    type: fixed
+    parent: body
+    child: head
+    origin: {xyz: [0.31, 0, 0.03], rpy: [0, 0, 0]}
+  - name: tail_fixed
+    type: fixed
+    parent: body
+    child: tail
+    origin: {xyz: [-0.325, 0, 0.03], rpy: [0, 0, 0]}
+  - name: front_left_foot_fixed
+    type: fixed
+    parent: front_left_leg
+    child: front_left_foot
+    origin: {xyz: [0, 0, -0.3], rpy: [0, 0, 0]}
+end_effectors: {foot: front_left_foot}

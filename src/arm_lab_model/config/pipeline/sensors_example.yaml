@@ -1,0 +1,20 @@
+# Ideal pinhole RGB-D camera, NOT a calibrated hardware RealSense model.
+schema_version: 1
+enabled: true
+cameras:
+  wrist_camera:
+    type: rgbd
+    model: ideal_pinhole_example
+    parent_link: wrist_3_link
+    transform:
+      xyz: [0.05, 0.0, 0.08]
+      rpy: [0.0, 0.0, 0.0]
+    resolution: [320, 240]
+    frame_rate_hz: 15.0
+    intrinsics:
+      fx: 280.0
+      fy: 280.0
+      cx: 159.5
+      cy: 119.5
+    clip: [0.05, 5.0]
+    noise_stddev: 0.0
